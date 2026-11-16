@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/brand/rcharness-banner-1280x640-transparent.png" alt="RcHarness" width="640">
+</p>
+
 # RcHarness
 
 RcHarness 是一款原生 macOS 菜单栏应用，通过蓝牙遥控器操作 Codex、Claude、Cursor、DeepSeek、WorkBuddy、OpenCode 等 AI 对话与编程应用。支持自定义按键、应用切换、常用语输入和语音输入，无需额外转接硬件。
