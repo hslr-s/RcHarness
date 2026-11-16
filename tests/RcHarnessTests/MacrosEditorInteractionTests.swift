@@ -275,6 +275,7 @@ final class MacrosEditorInteractionTests: XCTestCase {
                     NSApp.sendEvent(event)
                 }
                 host.layoutSubtreeIfNeeded()
+                window.displayIfNeeded()
                 await withCheckedContinuation { continuation in
                     DispatchQueue.main.async { continuation.resume() }
                 }
@@ -340,14 +341,24 @@ final class MacrosEditorInteractionTests: XCTestCase {
                 $0.convert($0.bounds, to: scroll.contentView).intersects(scroll.contentView.bounds)
             }
             XCTAssertFalse(controls.isEmpty, file: file, line: line)
-            let document = try XCTUnwrap(scroll.documentView)
-            XCTAssertEqual(scroll.contentView.bounds.maxY, document.bounds.maxY, accuracy: 2, file: file, line: line)
+            let viewport = scroll.contentView.convert(scroll.contentView.bounds, to: host)
+            let button = try addStepFrame
+            XCTAssertTrue(viewport.insetBy(dx: -2, dy: -2).contains(button),
+                          "Add button \(button) must stay inside viewport \(viewport)", file: file, line: line)
         }
 
         func clickAddStep() throws {
-            let document = try XCTUnwrap(editor.documentView)
-            // The last control is left-aligned immediately above the document's bottom edge.
-            try click(NSPoint(x: 48, y: document.isFlipped ? document.bounds.maxY - 11 : 11), in: document)
+            let frame = try addStepFrame
+            try click(NSPoint(x: frame.midX, y: frame.midY), in: host)
+        }
+
+        var addStepFrame: NSRect {
+            get throws {
+                let anchor = try XCTUnwrap(descendants(host).first {
+                    $0.identifier?.rawValue == "macro-add-step"
+                })
+                return anchor.convert(anchor.bounds, to: host)
+            }
         }
 
         func clickRemoveLastStep() throws {

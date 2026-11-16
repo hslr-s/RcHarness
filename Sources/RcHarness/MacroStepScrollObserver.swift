@@ -10,6 +10,7 @@ struct MacroStepScrollObserver: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSView {
         let view = NSView()
+        view.identifier = NSUserInterfaceItemIdentifier("macro-add-step")
         let coordinator = context.coordinator
         coordinator.observer = NotificationCenter.default.addObserver(
             forName: NSScrollView.willStartLiveScrollNotification, object: nil, queue: .main

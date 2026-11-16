@@ -221,14 +221,14 @@ struct MacrosPage: View {
                         Button { steps.wrappedValue.append(MacroStep()) } label: {
                             Label("添加步骤", systemImage: "plus")
                         }
+                        .background(MacroStepScrollObserver {
+                            followsStepFooter = false
+                            stepScrollTarget = nil
+                        }.allowsHitTesting(false))
                         .id(ScrollTarget.addStep)
                     }
                     .scrollTargetLayout()
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(MacroStepScrollObserver {
-                        followsStepFooter = false
-                        stepScrollTarget = nil
-                    })
                     // Reapply the footer anchor after lazy rows refine their estimated heights.
                     .onGeometryChange(for: CGSize.self) { $0.size } action: { _ in
                         if followsStepFooter { proxy.scrollTo(ScrollTarget.addStep, anchor: .bottom) }
