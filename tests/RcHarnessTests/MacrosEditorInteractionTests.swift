@@ -6,6 +6,21 @@ import XCTest
 
 @MainActor
 final class MacrosEditorInteractionTests: XCTestCase {
+    func testLocalClickActivatesButtonCellControlExactlyOnce() throws {
+        let fixture = try Fixture(stepCount: 1)
+        defer { fixture.close() }
+        let counter = ClickCounter()
+        let control = NSControl()
+        control.cell = NSButtonCell(textCell: "Native cell tracking")
+        control.target = counter
+        control.action = #selector(ClickCounter.clicked)
+        fixture.window.contentView = control
+
+        try fixture.click(NSPoint(x: control.bounds.midX, y: control.bounds.midY), in: control)
+
+        XCTAssertEqual(counter.count, 1)
+    }
+
     func testLocalClickActivatesNativeButtonExactlyOnce() throws {
         let fixture = try Fixture(stepCount: 1)
         defer { fixture.close() }
@@ -451,19 +466,19 @@ final class MacrosEditorInteractionTests: XCTestCase {
                 // Native controls own a synchronous mouse tracking loop on
                 // older AppKit. Use their normal action path without waiting
                 // for events from the real desktop session.
-                if let button = current as? NSButton {
-                    button.performClick(nil)
+                if let control = current as? NSControl, control.cell is NSButtonCell {
+                    control.performClick(nil)
                     return
                 }
                 hit = current.superview
             }
             // SwiftUI hosting views can handle hit testing themselves even
             // when the rendered button is a native descendant.
-            if let button = descendants(content).compactMap({ $0 as? NSButton }).filter({
-                !$0.isHiddenOrHasHiddenAncestor && !$0.bounds.isEmpty
+            if let control = descendants(content).compactMap({ $0 as? NSControl }).filter({
+                $0.cell is NSButtonCell && !$0.isHiddenOrHasHiddenAncestor && !$0.bounds.isEmpty
                     && $0.convert($0.bounds, to: nil).contains(location)
             }).min(by: { $0.bounds.width * $0.bounds.height < $1.bounds.width * $1.bounds.height }) {
-                button.performClick(nil)
+                control.performClick(nil)
                 return
             }
             for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
