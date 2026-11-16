@@ -6,6 +6,25 @@ import XCTest
 
 @MainActor
 final class MacrosEditorInteractionTests: XCTestCase {
+    func testLocalClickActivatesNativeButtonExactlyOnce() throws {
+        let fixture = try Fixture(stepCount: 1)
+        defer { fixture.close() }
+        let counter = ClickCounter()
+        let button = NSButton(title: "Native tracking", target: counter, action: #selector(ClickCounter.clicked))
+        button.setButtonType(.momentaryPushIn)
+        fixture.window.contentView = button
+
+        try fixture.click(NSPoint(x: button.bounds.midX, y: button.bounds.midY), in: button)
+
+        XCTAssertEqual(counter.count, 1)
+    }
+
+    @MainActor
+    private final class ClickCounter: NSObject {
+        var count = 0
+        @objc func clicked() { count += 1 }
+    }
+
     func testNarrowDarkEditorHandlesOneHundredMixedHeightSteps() async throws {
         let fixture = try Fixture(stepCount: 100, mixedHeights: true)
         defer { fixture.close() }
@@ -382,11 +401,7 @@ final class MacrosEditorInteractionTests: XCTestCase {
             let content = try XCTUnwrap(popup.contentView)
             // Disabled is the first row of every action category.
             let point = NSPoint(x: 70, y: content.isFlipped ? 18 : content.bounds.height - 18)
-            for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
-                NSApp.sendEvent(try XCTUnwrap(NSEvent.mouseEvent(with: type, location: content.convert(point, to: nil),
-                    modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: popup.windowNumber,
-                    context: nil, eventNumber: 1, clickCount: 1, pressure: type == .leftMouseDown ? 1 : 0)))
-            }
+            try click(point, in: content)
             await settle()
             XCTAssertFalse(popup.isVisible)
         }
@@ -422,10 +437,22 @@ final class MacrosEditorInteractionTests: XCTestCase {
         }
 
         func click(_ point: NSPoint, in view: NSView) throws {
-            for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
-                NSApp.sendEvent(try XCTUnwrap(NSEvent.mouseEvent(with: type, location: view.convert(point, to: nil),
-                    modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber,
-                    context: nil, eventNumber: 1, clickCount: 1, pressure: type == .leftMouseDown ? 1 : 0)))
+            let targetWindow = try XCTUnwrap(view.window)
+            func event(_ type: NSEvent.EventType) throws -> NSEvent {
+                try XCTUnwrap(NSEvent.mouseEvent(with: type, location: view.convert(point, to: nil),
+                    modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                    windowNumber: targetWindow.windowNumber, context: nil, eventNumber: 1,
+                    clickCount: 1, pressure: type == .leftMouseDown ? 1 : 0))
+            }
+            let down = try event(.leftMouseDown)
+            // Native NSButton mouseDown enters a tracking loop that consumes
+            // mouseUp before returning. Queue it first, only in this test app.
+            NSApp.postEvent(try event(.leftMouseUp), atStart: true)
+            NSApp.sendEvent(down)
+            // SwiftUI controls may return without a native tracking loop.
+            if let up = NSApp.nextEvent(matching: .leftMouseUp, until: .distantPast,
+                                        inMode: .default, dequeue: true) {
+                NSApp.sendEvent(up)
             }
         }
 

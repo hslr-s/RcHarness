@@ -34,26 +34,8 @@ jobs:
           test "$(uname -m)" = x86_64
           xcodebuild -version
           swift --version
-      # DEBUG-intel-hang: collect the blocked stack before the full suite.
-      - name: Diagnose complete Intel test sequence
-        run: |
-          swift build --build-tests
-          scripts/test_all.sh &
-          test_pid=$!
-          (
-            sleep 90
-            if kill -0 "$test_pid" 2>/dev/null; then
-              for pid in $(pgrep -f '[x]ctest.*RcHarnessPackageTests' || true); do
-                sample "$pid" 3 -file "$RUNNER_TEMP/intel-hang-$pid.txt" || true
-                cat "$RUNNER_TEMP/intel-hang-$pid.txt" || true
-                kill "$pid" || true
-              done
-              kill "$test_pid" || true
-            fi
-          ) &
-          watchdog_pid=$!
-          trap 'kill "$watchdog_pid" 2>/dev/null || true' EXIT
-          wait "$test_pid"
+      - name: Run native Intel checks
+        run: scripts/test_all.sh
       - name: Build and verify Universal app on Intel
         run: |
           scripts/build_app.sh "$RUNNER_TEMP/RcHarness-intel-check.app"

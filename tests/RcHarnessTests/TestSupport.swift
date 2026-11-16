@@ -15,13 +15,11 @@ func drainMainQueue() async {
 final class TestClock {
     private var now: TimeInterval = 0
     var time: TimeInterval { now }
-    private var tasks: [(TimeInterval, DispatchWorkItem, () -> Void)] = []
+    private var tasks: [(TimeInterval, DispatchWorkItem)] = []
 
     func schedule(after delay: TimeInterval, operation: @escaping () -> Void) -> DispatchWorkItem {
-        // The work item is a cancellation token; run callbacks directly so a
-        // callback can cancel itself without entering libdispatch's block runtime.
-        let work = DispatchWorkItem(block: {})
-        tasks.append((now + delay, work, operation))
+        let work = DispatchWorkItem(block: operation)
+        tasks.append((now + delay, work))
         return work
     }
 
@@ -30,7 +28,7 @@ final class TestClock {
         while let task = tasks.filter({ $0.0 <= end + 0.000001 }).min(by: { $0.0 < $1.0 }) {
             tasks.removeAll { $0.1 === task.1 }
             now = task.0
-            if !task.1.isCancelled { task.2() }
+            if !task.1.isCancelled { task.1.perform() }
         }
         now = end
     }
