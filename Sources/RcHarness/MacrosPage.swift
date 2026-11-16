@@ -12,6 +12,7 @@ struct MacrosPage: View {
     @State private var macroNameDraft: String
     @State private var selectedTagIDs: Set<String> = []
     @State private var stepScrollTarget: ScrollTarget?
+    @State private var followsStepFooter = false
 
     private var visibleMacros: [SavedMacro] {
         model.macros.filter { macro in
@@ -46,6 +47,7 @@ struct MacrosPage: View {
         }
         .onChange(of: selectedMacroID) { _, id in
             stepScrollTarget = nil
+            followsStepFooter = false
             macroNameDraft = model.macros.first(where: { $0.id == id })?.name ?? ""
         }
         .onChange(of: model.macros.map(\.id)) { _, ids in
@@ -223,18 +225,22 @@ struct MacrosPage: View {
                     }
                     .scrollTargetLayout()
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(MacroStepScrollObserver { stepScrollTarget = nil })
+                    .background(MacroStepScrollObserver {
+                        followsStepFooter = false
+                        stepScrollTarget = nil
+                    })
                     // Reapply the footer anchor after lazy rows refine their estimated heights.
                     .onGeometryChange(for: CGSize.self) { $0.size } action: { _ in
-                        if stepScrollTarget == .addStep { proxy.scrollTo(ScrollTarget.addStep, anchor: .bottom) }
+                        if followsStepFooter { proxy.scrollTo(ScrollTarget.addStep, anchor: .bottom) }
                     }
                 }
                 .scrollPosition(id: $stepScrollTarget, anchor: .bottom)
                 .onGeometryChange(for: CGSize.self) { $0.size } action: { _ in
-                    if stepScrollTarget == .addStep { proxy.scrollTo(ScrollTarget.addStep, anchor: .bottom) }
+                    if followsStepFooter { proxy.scrollTo(ScrollTarget.addStep, anchor: .bottom) }
                 }
                 .onChange(of: macro.steps.map(\.id)) { old, new in
                     if new.count > old.count {
+                        followsStepFooter = true
                         stepScrollTarget = .addStep
                         proxy.scrollTo(ScrollTarget.addStep, anchor: .bottom)
                     }
