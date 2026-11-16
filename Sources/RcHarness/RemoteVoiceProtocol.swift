@@ -9,6 +9,10 @@ struct RemoteVoiceIdentity {
     private var pnpReceived = false
     private var pnpAccepted = false
 
+    init(profile: RemoteProfile) {
+        self.profile = profile
+    }
+
     var confirmed: Bool { profile.acceptsVoiceModel(model) || pnpAccepted }
     var rejected: Bool {
         !confirmed && modelReceived && (!profile.supportsVoicePnPIdentity || pnpReceived)

@@ -135,7 +135,7 @@ final class MacrosEditorInteractionTests: XCTestCase {
         try fixture.clickAddStep()
         await fixture.settle()
         XCTAssertEqual(fixture.steps.count, 1)
-        XCTAssertEqual(fixture.actionControls.count, 1)
+        XCTAssertEqual(try fixture.visibleActionControls.count, 1)
         fixture.model.deleteMacro(fixture.macroID)
         await fixture.settle()
         XCTAssertEqual(try fixture.nameField.stringValue, fixture.model.macros[0].name)
@@ -162,6 +162,30 @@ final class MacrosEditorInteractionTests: XCTestCase {
         XCTAssertFalse(controls.isEmpty)
         XCTAssertLessThan(controls.count, 25,
                           "Opening a long action must not create native controls for every offscreen step")
+    }
+
+    func testAddedStepStaysVisibleWhenEditorHeightChanges() async throws {
+        let fixture = try Fixture(stepCount: 50, mixedHeights: true)
+        defer { fixture.close() }
+        try await fixture.scrollToEnd()
+        try fixture.clickAddStep()
+        await fixture.settle()
+        NotificationCenter.default.post(name: NSScrollView.willStartLiveScrollNotification, object: NSScrollView())
+        fixture.window.setContentSize(NSSize(width: 960, height: 490))
+        await fixture.settle()
+        XCTAssertEqual(fixture.steps.count, 51)
+        try fixture.assertLastStepVisible()
+        try fixture.snapshot("added-step-after-resize")
+        NotificationCenter.default.post(name: NSScrollView.willStartLiveScrollNotification,
+                                        object: try fixture.editor)
+        try await fixture.scrollToStart()
+        XCTAssertEqual(try fixture.editor.contentView.bounds.minY, 0, accuracy: 1,
+                       "Manual scrolling must release the bottom anchor")
+        try await fixture.scrollToEnd()
+        try fixture.clickAddStep()
+        await fixture.settle()
+        XCTAssertEqual(fixture.steps.count, 52)
+        try fixture.assertLastStepVisible()
     }
 
     @MainActor

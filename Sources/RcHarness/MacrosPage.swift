@@ -1,13 +1,17 @@
 import SwiftUI
 
 struct MacrosPage: View {
-    private enum ScrollTarget: Hashable { case addStep }
+    private enum ScrollTarget: Hashable {
+        case step(UUID)
+        case addStep
+    }
 
     @ObservedObject var model: RemoteDashboardModel
     @Binding var actionFilter: ActionFilter
     @State private var selectedMacroID: UUID?
     @State private var macroNameDraft: String
     @State private var selectedTagIDs: Set<String> = []
+    @State private var stepScrollTarget: ScrollTarget?
 
     private var visibleMacros: [SavedMacro] {
         model.macros.filter { macro in
@@ -41,6 +45,7 @@ struct MacrosPage: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .onChange(of: selectedMacroID) { _, id in
+            stepScrollTarget = nil
             macroNameDraft = model.macros.first(where: { $0.id == id })?.name ?? ""
         }
         .onChange(of: model.macros.map(\.id)) { _, ids in
@@ -209,17 +214,30 @@ struct MacrosPage: View {
                                 }
                             }
                             .padding(SettingsStyle.controlPadding).background(SettingsStyle.subtle, in: RoundedRectangle(cornerRadius: SettingsStyle.controlRadius))
-                            .id(step.id)
+                            .id(ScrollTarget.step(step.id))
                         }
                         Button { steps.wrappedValue.append(MacroStep()) } label: {
                             Label("添加步骤", systemImage: "plus")
                         }
                         .id(ScrollTarget.addStep)
                     }
+                    .scrollTargetLayout()
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(MacroStepScrollObserver { stepScrollTarget = nil })
+                    // Reapply the footer anchor after lazy rows refine their estimated heights.
+                    .onGeometryChange(for: CGSize.self) { $0.size } action: { _ in
+                        if stepScrollTarget == .addStep { proxy.scrollTo(ScrollTarget.addStep, anchor: .bottom) }
+                    }
+                }
+                .scrollPosition(id: $stepScrollTarget, anchor: .bottom)
+                .onGeometryChange(for: CGSize.self) { $0.size } action: { _ in
+                    if stepScrollTarget == .addStep { proxy.scrollTo(ScrollTarget.addStep, anchor: .bottom) }
                 }
                 .onChange(of: macro.steps.map(\.id)) { old, new in
-                    if new.count > old.count { proxy.scrollTo(ScrollTarget.addStep, anchor: .bottom) }
+                    if new.count > old.count {
+                        stepScrollTarget = .addStep
+                        proxy.scrollTo(ScrollTarget.addStep, anchor: .bottom)
+                    }
                 }
             }
             Divider()
