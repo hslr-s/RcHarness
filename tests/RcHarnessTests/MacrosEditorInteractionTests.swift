@@ -368,6 +368,10 @@ final class MacrosEditorInteractionTests: XCTestCase {
 
         func clickAddStep() throws {
             let frame = try addStepFrame
+            let scroll = try editor
+            let viewport = scroll.contentView.convert(scroll.contentView.bounds, to: host)
+            _ = try XCTUnwrap(!frame.isEmpty && viewport.insetBy(dx: -2, dy: -2).contains(frame) ? frame : nil,
+                              "Add button \(frame) must be visible inside viewport \(viewport) before clicking")
             try click(NSPoint(x: frame.midX, y: frame.midY), in: host)
         }
 
@@ -439,6 +443,9 @@ final class MacrosEditorInteractionTests: XCTestCase {
         func click(_ point: NSPoint, in view: NSView) throws {
             let targetWindow = try XCTUnwrap(view.window)
             let content = try XCTUnwrap(targetWindow.contentView)
+            let location = view.convert(point, to: nil)
+            _ = try XCTUnwrap(content.visibleRect.contains(content.convert(location, from: nil)) ? location : nil,
+                              "Click \(location) must remain inside the test window content \(content.frame)")
             var hit = content.hitTest(view.convert(point, to: content.superview))
             while let current = hit {
                 // Native controls own a synchronous mouse tracking loop on
@@ -450,8 +457,17 @@ final class MacrosEditorInteractionTests: XCTestCase {
                 }
                 hit = current.superview
             }
+            // SwiftUI hosting views can handle hit testing themselves even
+            // when the rendered button is a native descendant.
+            if let button = descendants(content).compactMap({ $0 as? NSButton }).filter({
+                !$0.isHiddenOrHasHiddenAncestor && !$0.bounds.isEmpty
+                    && $0.convert($0.bounds, to: nil).contains(location)
+            }).min(by: { $0.bounds.width * $0.bounds.height < $1.bounds.width * $1.bounds.height }) {
+                button.performClick(nil)
+                return
+            }
             for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
-                NSApp.sendEvent(try XCTUnwrap(NSEvent.mouseEvent(with: type, location: view.convert(point, to: nil),
+                NSApp.sendEvent(try XCTUnwrap(NSEvent.mouseEvent(with: type, location: location,
                     modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
                     windowNumber: targetWindow.windowNumber, context: nil, eventNumber: 1,
                     clickCount: 1, pressure: type == .leftMouseDown ? 1 : 0)))
