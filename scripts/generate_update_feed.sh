@@ -9,7 +9,7 @@ REPO="${3:-tokenzz-vip/RcHarness}"
 if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
   echo 'Expected a stable vMAJOR.MINOR.PATCH tag.' >&2; exit 1
 fi
-if [[ ! -f "$DIST/RcHarness-$TAG-macos-arm64.zip" ]]; then
+if [[ ! -f "$DIST/RcHarness-$TAG-macos-universal.zip" ]]; then
   echo 'Final release ZIP is missing.' >&2; exit 1
 fi
 TOOLS="$ROOT/.build/artifacts/sparkle/Sparkle"
@@ -34,4 +34,4 @@ else
 fi
 # Fail closed if the archive was not signed (e.g. wrong key), or metadata
 # differs from the app that will actually be shipped.
-python3 "$ROOT/scripts/validate_update_feed.py" "$DIST/appcast.xml" "$DIST/RcHarness-$TAG-macos-arm64.zip" "$TAG" "$REPO"
+python3 "$ROOT/scripts/validate_update_feed.py" "$DIST/appcast.xml" "$DIST/RcHarness-$TAG-macos-universal.zip" "$TAG" "$REPO"

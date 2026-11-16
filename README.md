@@ -8,7 +8,7 @@ RcHarness 是一款原生 macOS 菜单栏应用，通过蓝牙遥控器操作 Co
 
 **按键方案随当前 Harness 应用自动切换**，同一实体按键可在不同软件中执行不同动作。
 
-**运行环境：Apple Silicon Mac · macOS 14+ · 简体中文界面**
+**运行环境：Intel 或 Apple Silicon Mac · macOS 14+ · 简体中文界面**
 
 [下载应用](https://github.com/tokenzz-vip/RcHarness/releases) · [快速开始](#快速开始) · [反馈问题](https://github.com/tokenzz-vip/RcHarness/issues)
 
@@ -98,6 +98,8 @@ Chromecast 遥控器首次建立配置时默认使用点按语音模式，也可
 ## 开发
 
 项目使用 Swift、SwiftUI 和 Swift Package Manager，通过 Sparkle 2 提供应用内更新（SwiftPM 固定版本及校验和）。当前 CI 与发布使用 **Xcode 27.1 / Swift 6.4**，最低运行系统为 macOS 14。
+
+`scripts/build_app.sh` 默认构建 Universal 应用：主程序与 HAL 驱动均包含 arm64 和 x86_64，Intel 与 Apple Silicon 共用安装包及更新源。打包时检查所有随包可执行文件（含 Sparkle 辅助进程）的架构和最低系统版本，避免遗漏 Intel 组件或提高系统要求。Intel 真机上的蓝牙、HID 和 HAL 加载仍需端到端验收；Rosetta 测试不能替代硬件验收。
 
 本机构建前，将 `RC_HARNESS_LOCAL_SIGNING_IDENTITY` 设置为 `security find-identity -v -p codesigning` 列出的有效 Apple 签名身份，值不能是 `-`。若配置在 `~/.zshrc` 中，非交互构建时通过 `zsh -ic` 加载。
 

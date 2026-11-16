@@ -25,10 +25,18 @@ OUT="${PARENT}/$(basename "${OUT}")"
 STAGE="$(mktemp -d "${PARENT}/.rcharness-build.XXXXXX")"
 trap 'rm -rf "${STAGE}"' EXIT
 APP="${STAGE}/RcHarness.app"
-swift build --package-path "${ROOT}" --arch arm64 -c "${CONFIGURATION}"
-BIN="$(swift build --package-path "${ROOT}" --show-bin-path --arch arm64 -c "${CONFIGURATION}")/RcHarness"
+BINARIES="${STAGE}/binaries"
+mkdir -p "${BINARIES}"
+for ARCH in arm64 x86_64; do
+  swift build --package-path "${ROOT}" --arch "${ARCH}" -c "${CONFIGURATION}"
+  BIN="$(swift build --package-path "${ROOT}" --show-bin-path --arch "${ARCH}" -c "${CONFIGURATION}")/RcHarness"
+  cp "${BIN}" "${BINARIES}/RcHarness-${ARCH}"
+done
 mkdir -p "${APP}/Contents/MacOS" "${APP}/Contents/PlugIns" "${APP}/Contents/Resources"
-cp "${BIN}" "${APP}/Contents/MacOS/RcHarness"
+lipo -create \
+  "${BINARIES}/RcHarness-arm64" \
+  "${BINARIES}/RcHarness-x86_64" \
+  -output "${APP}/Contents/MacOS/RcHarness"
 cp "${ROOT}/Sources/RcHarness/Info.plist" "${APP}/Contents/Info.plist"
 cp "${ROOT}/LICENSE" "${APP}/Contents/Resources/LICENSE"
 # Info.plist is the single version source; optionally stamp a release version.
@@ -44,6 +52,7 @@ cp "${ROOT}/assets/app/controller-dashboard-xiaomi-remote.png" "${APP}/Contents/
 cp "${ROOT}/assets/app/controller-dashboard-google-g9n9n.png" "${APP}/Contents/Resources/controller-dashboard-google-g9n9n.png"
 "${ROOT}/scripts/build_microphone_driver.sh" "${APP}/Contents/PlugIns" "${SIGNING_MODE}"
 bash "${ROOT}/scripts/embed_sparkle.sh" "${APP}" "${SIGNING_MODE}"
+python3 "${ROOT}/scripts/verify_universal_app.py" "${APP}"
 "${ROOT}/scripts/sign_macos_code.sh" "${APP}" vip.tokenzz.rcharness "${SIGNING_MODE}" "${ROOT}/scripts/RcHarness.entitlements"
 /usr/bin/codesign --verify --deep --strict "${APP}"
 if [[ -e "${OUT}" ]]; then mv "${OUT}" "${STAGE}/previous.app"; fi

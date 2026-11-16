@@ -35,7 +35,9 @@ gh secret set SPARKLE_PRIVATE_KEY --repo tokenzz-vip/RcHarness < "$keyfile"
 
 发布 workflow 在创建正式 Release 前要求所有签名 secret 就绪。构建和公证完成、staple 后压缩最终 ZIP，再运行 `scripts/generate_update_feed.sh`，从最终包读取构建号、展示版本和最低系统版本，生成签名更新源。脚本校验下载地址、ZIP 长度、版本及签名；任一步失败不会发布 Release。ZIP、SHA256SUMS 和 appcast 作为同一 Release 的附件一起发布。
 
-`CFBundleVersion` 使用现有 workflow 的 `github.run_number`，必须保持递增，避免重建 workflow 后重置。展示版本遵循 `vMAJOR.MINOR.PATCH` 标签。每次正式发布都必须附带 appcast，否则 latest 更新入口会失效。当前仅发布正式版和 arm64 全量更新，不生成增量包。
+`CFBundleVersion` 使用现有 workflow 的 `github.run_number`，必须保持递增，避免重建 workflow 后重置。展示版本遵循 `vMAJOR.MINOR.PATCH` 标签。每次正式发布都必须附带 appcast，否则 latest 更新入口会失效。当前发布包含 arm64 与 x86_64 的 Universal 全量更新，不生成增量包。
+
+发布包命名为 `RcHarness-v版本号-macos-universal.zip`，最低系统保持 macOS 14。已有 arm64 安装继续使用相同的 appcast 地址升级到 Universal 包。
 
 本地可对专用发布目录运行：
 

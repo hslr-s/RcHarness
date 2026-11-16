@@ -164,9 +164,9 @@ jobs:
           codesign --verify --deep --strict "$APP_PATH"
           spctl --assess --type execute --verbose=4 "$APP_PATH"
           mkdir -p "$DIST_DIR"
-          ditto -c -k --keepParent "$APP_PATH" "$DIST_DIR/RcHarness-$RELEASE_TAG-macos-arm64.zip"
+          ditto -c -k --keepParent "$APP_PATH" "$DIST_DIR/RcHarness-$RELEASE_TAG-macos-universal.zip"
           cd "$DIST_DIR"
-          shasum -a 256 "RcHarness-$RELEASE_TAG-macos-arm64.zip" > SHA256SUMS
+          shasum -a 256 "RcHarness-$RELEASE_TAG-macos-universal.zip" > SHA256SUMS
 
       - name: Generate signed update feed
         env:
@@ -178,7 +178,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          assets=("$DIST_DIR/RcHarness-$RELEASE_TAG-macos-arm64.zip" "$DIST_DIR/SHA256SUMS" "$DIST_DIR/appcast.xml")
+          assets=("$DIST_DIR/RcHarness-$RELEASE_TAG-macos-universal.zip" "$DIST_DIR/SHA256SUMS" "$DIST_DIR/appcast.xml")
           if gh release view "$RELEASE_TAG" --json isDraft > "$RUNNER_TEMP/existing-release.json" 2>/dev/null; then
             if [[ "$(jq -r '.isDraft' "$RUNNER_TEMP/existing-release.json")" != true ]]; then
               echo '::error::This version is already published. Push a new version tag instead of replacing its assets.'

@@ -2,7 +2,7 @@
 
 审计对象：[`nixihz/JoyHarness`](https://github.com/nixihz/JoyHarness)，本地审计快照 `1e13f47aa459631cb8eea8a0d8a1e37d80e3bd79`（2026-10-21）。重点是 Xiaomi Bluetooth Remote 2 Pro（型号 `RC003-MS`）及其与 Codex Micro 的连接边界。
 
-RcHarness 的产品约束已收窄为 **Apple Silicon（arm64）+ macOS 15 及以上 + 纯软件适配**。因此，本文只把 JoyHarness 中不依赖 RP2040 的遥控器能力作为 RcHarness 候选功能；依赖开发板的部分保留为排除项和边界说明。遥控器适配按设备驱动设计，当前仅以仓库内的 `RC003-MS` 作为参考，不表示首期只能支持这一款。
+RcHarness 的产品约束为 **Intel 或 Apple Silicon + macOS 14 及以上 + 纯软件适配**。因此，本文只把 JoyHarness 中不依赖 RP2040 的遥控器能力作为 RcHarness 候选功能；依赖开发板的部分保留为排除项和边界说明。遥控器适配按设备驱动设计，当前仅以仓库内的 `RC003-MS` 作为参考，不表示首期只能支持这一款。
 
 ## 结论
 
@@ -54,7 +54,7 @@ RcHarness 的产品约束已收窄为 **Apple Silicon（arm64）+ macOS 15 及�
 
 不增加 RP2040 时，至少需要：
 
-1. Apple Silicon Mac，macOS 15 或更高版本；
+1. Apple Silicon Mac，macOS 15 或更高版本（此处为当时 Joy Harness 的审计条件；RcHarness 当前支持 Intel 或 Apple Silicon、macOS 14+）；
 2. RC003-MS 通过系统蓝牙配对；
 3. 给 Joy Harness 授予 Input Monitoring；需要鼠标/系统键时再授予 Accessibility；
 4. 启用随 App 提供的 Remote Microphone HAL 组件，并在系统/语音应用中选择 `Joy Harness 遥控器麦克风`；
