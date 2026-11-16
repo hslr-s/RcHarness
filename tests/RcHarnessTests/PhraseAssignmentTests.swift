@@ -1,5 +1,4 @@
 import AppKit
-import ObjectiveC
 import SwiftUI
 import XCTest
 @testable import RcHarness
@@ -7,8 +6,6 @@ import XCTest
 @MainActor
 final class PhraseAssignmentTests: XCTestCase {
     func testDirectionIconsOpenPopoversInTheRealDashboardWindow() async throws {
-        let popovers = try NonAnimatingPopovers()
-        defer { popovers.restore() }
         _ = NSApplication.shared
         let suite = "RcHarness.PhraseDashboardTests." + UUID().uuidString
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
@@ -24,25 +21,23 @@ final class PhraseAssignmentTests: XCTestCase {
         let host = try XCTUnwrap(window.contentView)
         host.layoutSubtreeIfNeeded()
         await flushUI()
-        let existing = Set(NSApp.windows.filter(\.isVisible).map(\.windowNumber))
-        for point in [NSPoint(x: 256, y: 315), NSPoint(x: 188, y: 383), NSPoint(x: 324, y: 383),
-                      NSPoint(x: 256, y: 451), NSPoint(x: 256, y: 383)] {
-            try click(point, in: host, window: window)
-            await flushUI()
-            let popup = NSApp.windows.first { $0.isVisible && !existing.contains($0.windowNumber) }
-            XCTAssertNotNil(popup, "Direction icon at \(point) must open a popover in the real window; bounds=\(host.bounds)")
-            if let popup {
-                let anchor = window.convertPoint(toScreen: host.convert(point, to: nil))
-                XCTAssertGreaterThan(popup.frame.midX, anchor.x, "The picker should open to the right when there is room")
-                try click(NSPoint(x: 100, y: 103), in: XCTUnwrap(popup.contentView), window: popup)
-                await flushUI()
-            }
+        for input in PhraseAssignments.inputs {
+            let shown = try await openPopover(input, in: host)
+            XCTAssertGreaterThan(shown.window.frame.midX, shown.anchor.x,
+                                 "The picker should open to the right when there is room")
+            try await selectOption(at: NSPoint(x: 100, y: 103), in: shown)
         }
     }
 
     func testEveryAssignmentPopoverSearchesAndUpdatesOnlyItsOwnSlot() async throws {
-        let popovers = try NonAnimatingPopovers()
-        defer { popovers.restore() }
+        try await checkAssignmentPopovers(height: 650)
+    }
+
+    func testTallerWindowAssignmentPopoversFollowThePad() async throws {
+        try await checkAssignmentPopovers(height: 850)
+    }
+
+    private func checkAssignmentPopovers(height: CGFloat) async throws {
         _ = NSApplication.shared
         let suite = "RcHarness.PhraseAssignmentTests." + UUID().uuidString
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
@@ -53,7 +48,7 @@ final class PhraseAssignmentTests: XCTestCase {
                          SavedPhrase(title: "更多内容", text: "另一个条目")]
         model.phraseAssignments = PhraseAssignments()
         let host = NSHostingView(rootView: PhrasesPage(model: model).background(Color(nsColor: .windowBackgroundColor)))
-        let window = NSWindow(contentRect: NSRect(x: 100, y: 100, width: 920, height: 650),
+        let window = NSWindow(contentRect: NSRect(x: 100, y: 100, width: 920, height: height),
                               styleMask: [.titled], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         window.appearance = NSAppearance(named: ProcessInfo.processInfo.environment["RC_HARNESS_UI_DARK"] == "1" ? .darkAqua : .aqua)
@@ -62,60 +57,42 @@ final class PhraseAssignmentTests: XCTestCase {
         defer { window.close() }
         host.layoutSubtreeIfNeeded()
         await flushUI()
-        let existingWindows = Set(NSApp.windows.filter(\.isVisible).map(\.windowNumber))
         var expected = PhraseAssignments()
         for input in PhraseAssignments.inputs {
-            // The 212-point wheel starts at (20, 163) in this fixed-size page fixture.
-            let position = PhrasePadLayout.position(for: input)
-            try click(NSPoint(x: 20 + position.x, y: 163 + position.y), in: host, window: window)
-            await flushUI()
-            let popup = try XCTUnwrap(NSApp.windows.first { $0.isVisible && !existingWindows.contains($0.windowNumber) },
-                                     "Clicking \(input.label) must open the phrase selection popover")
+            let shown = try await openPopover(input, in: host)
+            let popup = shown.window
             let editor = try XCTUnwrap(popup.firstResponder as? NSTextView, "The search field must receive keyboard focus")
             XCTAssertEqual(editor.string, "", "Opening another key must reset the previous query")
             editor.insertText("选条", replacementRange: NSRange(location: NSNotFound, length: 0))
             await flushUI()
             try snapshot(window: window, popup: popup, name: input.rawValue)
-            let content = try XCTUnwrap(popup.contentView)
-            try click(NSPoint(x: 100, y: 193), in: content, window: popup)
-            await flushUI()
+            try await selectOption(at: NSPoint(x: 100, y: 193), in: shown)
             expected[input] = model.phrases[1].id
             XCTAssertEqual(model.phraseAssignments, expected, "Search result must update only \(input.label)")
-            XCTAssertFalse(popup.isVisible, "Selecting a phrase must close this picker before opening another key")
             try assertListMatchesModel(model, in: host)
         }
-        let up = PhrasePadLayout.position(for: .dpadUp)
-        try click(NSPoint(x: 20 + up.x, y: 163 + up.y), in: host, window: window)
-        await flushUI()
-        let replacementPopup = try XCTUnwrap(NSApp.windows.first { $0.isVisible && !existingWindows.contains($0.windowNumber) })
+        let replacement = try await openPopover(.dpadUp, in: host)
+        let replacementPopup = replacement.window
         let replacementEditor = try XCTUnwrap(replacementPopup.firstResponder as? NSTextView)
         replacementEditor.insertText("其他", replacementRange: NSRange(location: NSNotFound, length: 0))
         await flushUI()
-        try click(NSPoint(x: 100, y: 193), in: XCTUnwrap(replacementPopup.contentView), window: replacementPopup)
-        await flushUI()
+        try await selectOption(at: NSPoint(x: 100, y: 193), in: replacement)
         expected[.dpadUp] = model.phrases[0].id
         XCTAssertEqual(model.phraseAssignments, expected)
         try assertListMatchesModel(model, in: host)
-        let right = PhrasePadLayout.position(for: .dpadRight)
-        try click(NSPoint(x: 20 + right.x, y: 163 + right.y), in: host, window: window)
-        await flushUI()
-        let popup = try XCTUnwrap(NSApp.windows.first { $0.isVisible && !existingWindows.contains($0.windowNumber) })
+        let emptySearch = try await openPopover(.dpadRight, in: host)
+        let popup = emptySearch.window
         let editor = try XCTUnwrap(popup.firstResponder as? NSTextView)
         editor.insertText("没有匹配的关键词", replacementRange: NSRange(location: NSNotFound, length: 0))
         await flushUI()
         try snapshot(window: window, popup: popup, name: "empty-search")
-        try click(NSPoint(x: 100, y: 103), in: XCTUnwrap(popup.contentView), window: popup)
-        await flushUI()
+        try await selectOption(at: NSPoint(x: 100, y: 103), in: emptySearch)
         expected[.dpadRight] = nil
         XCTAssertEqual(model.phraseAssignments, expected, "Unassign must remain available when search has no matches")
         try assertListMatchesModel(model, in: host)
         for input in PhraseAssignments.inputs where expected[input] != nil {
-            let position = PhrasePadLayout.position(for: input)
-            try click(NSPoint(x: 20 + position.x, y: 163 + position.y), in: host, window: window)
-            await flushUI()
-            let popup = try XCTUnwrap(NSApp.windows.first { $0.isVisible && !existingWindows.contains($0.windowNumber) })
-            try click(NSPoint(x: 100, y: 103), in: XCTUnwrap(popup.contentView), window: popup)
-            await flushUI()
+            let shown = try await openPopover(input, in: host)
+            try await selectOption(at: NSPoint(x: 100, y: 103), in: shown)
             expected[input] = nil
             XCTAssertEqual(model.phraseAssignments, expected)
             try assertListMatchesModel(model, in: host)
@@ -223,6 +200,66 @@ final class PhraseAssignmentTests: XCTestCase {
         XCTAssertTrue(selections.isEmpty, "A release without a matching press must not select a key")
     }
 
+    private struct ShownPopover {
+        let popover: NSPopover
+        let window: NSWindow
+        let anchor: NSPoint
+    }
+
+    @MainActor
+    private final class PopoverPresentation {
+        var popover: NSPopover?
+    }
+
+    /// Queue turns do not imply completed SwiftUI/AppKit presentation updates.
+    /// Observe the actual lifecycle and retain exactly the picker that opened.
+    private func openPopover(_ input: ControllerInput, in host: NSView) async throws -> ShownPopover {
+        let presented = PopoverPresentation()
+        let shown = expectation(forNotification: NSPopover.didShowNotification, object: nil) { notification in
+            guard let popover = notification.object as? NSPopover else { return false }
+            MainActor.assumeIsolated {
+                presented.popover = popover
+            }
+            return true
+        }
+        let anchor = try clickPad(input, in: host)
+        await fulfillment(of: [shown], timeout: 2)
+        await flushUI()
+        let popover = try XCTUnwrap(presented.popover, "Clicking \(input.label) must present the phrase selection popover")
+        let popup = try XCTUnwrap(popover.contentViewController?.view.window)
+        XCTAssertTrue(popover.isShown)
+        return ShownPopover(popover: popover, window: popup, anchor: anchor)
+    }
+
+    private func selectOption(at point: NSPoint, in shown: ShownPopover) async throws {
+        let closed = expectation(forNotification: NSPopover.didCloseNotification, object: shown.popover)
+        try click(point, in: XCTUnwrap(shown.window.contentView), window: shown.window)
+        await fulfillment(of: [closed], timeout: 2)
+        await flushUI()
+        XCTAssertFalse(shown.popover.isShown, "The picker must finish closing before another key is selected")
+        XCTAssertFalse(shown.window.isVisible)
+    }
+
+    /// SwiftUI distributes the panel's spacers differently across window sizes
+    /// and AppKit versions. Route through the laid-out native pointer surface.
+    @discardableResult
+    private func clickPad(_ input: ControllerInput, in host: NSView) throws -> NSPoint {
+        func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }
+        host.layoutSubtreeIfNeeded()
+        let pad = try XCTUnwrap(descendants(host).compactMap { $0 as? PhrasePadInputView }.first)
+        let window = try XCTUnwrap(pad.window)
+        let position = PhrasePadLayout.position(for: input)
+        let point = NSPoint(x: pad.bounds.minX + position.x * pad.bounds.width / 212,
+                            y: pad.bounds.minY + position.y * pad.bounds.height / 212)
+        let content = try XCTUnwrap(window.contentView)
+        let hit = content.hitTest(pad.convert(point, to: content.superview))
+        _ = try XCTUnwrap(hit === pad ? hit : nil,
+                          "\(input.label) at \(point) must hit the actual pad; frame=\(pad.convert(pad.bounds, to: content))")
+        let anchor = window.convertPoint(toScreen: pad.convert(point, to: nil))
+        try clickInTestWindow(point, in: pad)
+        return anchor
+    }
+
     private func click(_ point: NSPoint, in view: NSView, window: NSWindow) throws {
         let adjusted = NSPoint(x: point.x, y: view.isFlipped ? point.y : view.bounds.height - point.y)
         XCTAssertTrue(view.window === window)
@@ -262,32 +299,4 @@ final class PhraseAssignmentTests: XCTestCase {
         }
     }
 
-}
-
-/// Keep consecutive popup interactions deterministic without waiting for real
-/// AppKit animation deadlines. The application's animation setting is unchanged.
-@MainActor
-private final class NonAnimatingPopovers {
-    private typealias Show = @convention(c) (NSPopover, Selector, NSRect, NSView, UInt) -> Void
-    private let method: Method
-    private let original: IMP
-    private let replacement: IMP
-
-    init() throws {
-        let selector = #selector(NSPopover.show(relativeTo:of:preferredEdge:))
-        method = try XCTUnwrap(class_getInstanceMethod(NSPopover.self, selector))
-        original = method_getImplementation(method)
-        let show = unsafeBitCast(original, to: Show.self)
-        let block: @convention(block) (NSPopover, NSRect, NSView, UInt) -> Void = { popover, rect, view, edge in
-            popover.animates = false
-            show(popover, selector, rect, view, edge)
-        }
-        replacement = imp_implementationWithBlock(block)
-        method_setImplementation(method, replacement)
-    }
-
-    func restore() {
-        method_setImplementation(method, original)
-        imp_removeBlock(replacement)
-    }
 }
