@@ -34,6 +34,26 @@ jobs:
           test "$(uname -m)" = x86_64
           xcodebuild -version
           swift --version
+      # DEBUG-intel-hang: collect the blocked stack before the full suite.
+      - name: Diagnose Intel startup timeout test
+        run: |
+          swift build --build-tests
+          swift test --skip-build --filter InputAndAudioTests.testStartupTimeoutAndOverflowFailClearlyAndIgnoreLatePreparation &
+          test_pid=$!
+          (
+            sleep 60
+            if kill -0 "$test_pid" 2>/dev/null; then
+              for pid in $(pgrep -f '[x]ctest.*RcHarnessPackageTests' || true); do
+                sample "$pid" 3 -file "$RUNNER_TEMP/intel-hang-$pid.txt" || true
+                cat "$RUNNER_TEMP/intel-hang-$pid.txt" || true
+                kill "$pid" || true
+              done
+              kill "$test_pid" || true
+            fi
+          ) &
+          watchdog_pid=$!
+          trap 'kill "$watchdog_pid" 2>/dev/null || true' EXIT
+          wait "$test_pid"
       - name: Run native Intel checks
         run: scripts/test_all.sh
       - name: Build and verify Universal app on Intel
