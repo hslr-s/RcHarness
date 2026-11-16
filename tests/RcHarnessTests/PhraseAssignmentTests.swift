@@ -1,4 +1,5 @@
 import AppKit
+import ObjectiveC
 import SwiftUI
 import XCTest
 @testable import RcHarness
@@ -6,6 +7,8 @@ import XCTest
 @MainActor
 final class PhraseAssignmentTests: XCTestCase {
     func testDirectionIconsOpenPopoversInTheRealDashboardWindow() async throws {
+        let popovers = try NonAnimatingPopovers()
+        defer { popovers.restore() }
         _ = NSApplication.shared
         let suite = "RcHarness.PhraseDashboardTests." + UUID().uuidString
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
@@ -38,6 +41,8 @@ final class PhraseAssignmentTests: XCTestCase {
     }
 
     func testEveryAssignmentPopoverSearchesAndUpdatesOnlyItsOwnSlot() async throws {
+        let popovers = try NonAnimatingPopovers()
+        defer { popovers.restore() }
         _ = NSApplication.shared
         let suite = "RcHarness.PhraseAssignmentTests." + UUID().uuidString
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
@@ -76,6 +81,7 @@ final class PhraseAssignmentTests: XCTestCase {
             await flushUI()
             expected[input] = model.phrases[1].id
             XCTAssertEqual(model.phraseAssignments, expected, "Search result must update only \(input.label)")
+            XCTAssertFalse(popup.isVisible, "Selecting a phrase must close this picker before opening another key")
             try assertListMatchesModel(model, in: host)
         }
         let up = PhrasePadLayout.position(for: .dpadUp)
@@ -256,4 +262,32 @@ final class PhraseAssignmentTests: XCTestCase {
         }
     }
 
+}
+
+/// Keep consecutive popup interactions deterministic without waiting for real
+/// AppKit animation deadlines. The application's animation setting is unchanged.
+@MainActor
+private final class NonAnimatingPopovers {
+    private typealias Show = @convention(c) (NSPopover, Selector, NSRect, NSView, UInt) -> Void
+    private let method: Method
+    private let original: IMP
+    private let replacement: IMP
+
+    init() throws {
+        let selector = #selector(NSPopover.show(relativeTo:of:preferredEdge:))
+        method = try XCTUnwrap(class_getInstanceMethod(NSPopover.self, selector))
+        original = method_getImplementation(method)
+        let show = unsafeBitCast(original, to: Show.self)
+        let block: @convention(block) (NSPopover, NSRect, NSView, UInt) -> Void = { popover, rect, view, edge in
+            popover.animates = false
+            show(popover, selector, rect, view, edge)
+        }
+        replacement = imp_implementationWithBlock(block)
+        method_setImplementation(method, replacement)
+    }
+
+    func restore() {
+        method_setImplementation(method, original)
+        imp_removeBlock(replacement)
+    }
 }
