@@ -48,7 +48,8 @@ func clickInTestWindow(_ point: NSPoint, in view: NSView) throws {
     let location = view.convert(point, to: nil)
     _ = try XCTUnwrap(content.visibleRect.contains(content.convert(location, from: nil)) ? location : nil,
                       "Click \(location) must remain inside the test window content \(content.frame)")
-    var hit = content.hitTest(view.convert(point, to: content.superview))
+    let hitView = content.hitTest(view.convert(point, to: content.superview))
+    var hit = hitView
     while let current = hit {
         // Native controls own a synchronous mouse tracking loop on
         // older AppKit. Use their normal action path without waiting
@@ -59,9 +60,10 @@ func clickInTestWindow(_ point: NSPoint, in view: NSView) throws {
         }
         hit = current.superview
     }
-    // SwiftUI hosting views can handle hit testing themselves even
-    // when the rendered button is a native descendant.
-    if let control = descendants(content).compactMap({ $0 as? NSControl }).filter({
+    // Only fall back to native bounds when the hosting root owns the hit.
+    // Custom pointer views must keep priority over buttons underneath them.
+    if hitView === content,
+       let control = descendants(content).compactMap({ $0 as? NSControl }).filter({
         $0.cell is NSButtonCell && !$0.isHiddenOrHasHiddenAncestor && !$0.bounds.isEmpty
             && $0.convert($0.bounds, to: nil).contains(location)
     }).min(by: { $0.bounds.width * $0.bounds.height < $1.bounds.width * $1.bounds.height }) {

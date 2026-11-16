@@ -6,6 +6,32 @@ import XCTest
 
 @MainActor
 final class MacrosEditorInteractionTests: XCTestCase {
+    func testLocalClickPreservesPointerViewAboveNativeButton() throws {
+        let fixture = try Fixture(stepCount: 1)
+        defer { fixture.close() }
+        let content = NSView(frame: fixture.host.bounds)
+        let counter = ClickCounter()
+        let button = NSButton(title: "Covered button", target: counter, action: #selector(ClickCounter.clicked))
+        button.frame = content.bounds
+        let pointer = ClickPointerView(frame: content.bounds)
+        content.addSubview(button)
+        content.addSubview(pointer)
+        fixture.window.contentView = content
+
+        try fixture.click(NSPoint(x: pointer.bounds.midX, y: pointer.bounds.midY), in: pointer)
+
+        XCTAssertEqual(pointer.count, 1)
+        XCTAssertEqual(counter.count, 0, "A button below the pointer surface must not steal the click")
+    }
+
+    @MainActor
+    private final class ClickPointerView: NSView {
+        var count = 0
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+        override func mouseDown(with event: NSEvent) {}
+        override func mouseUp(with event: NSEvent) { count += 1 }
+    }
+
     func testLocalClickActivatesButtonCellControlExactlyOnce() throws {
         let fixture = try Fixture(stepCount: 1)
         defer { fixture.close() }
