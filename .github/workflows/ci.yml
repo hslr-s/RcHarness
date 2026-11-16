@@ -34,8 +34,34 @@ jobs:
           test "$(uname -m)" = x86_64
           xcodebuild -version
           swift --version
-      - name: Run native Intel checks
-        run: scripts/test_all.sh
+      # DEBUG-native-cell: capture the actual blocked receiver and coordinates.
+      - name: Diagnose blocked Intel UI interaction
+        run: |
+          swift build --build-tests
+          scripts/test_all.sh &
+          test_pid=$!
+          (
+            sleep 90
+            if kill -0 "$test_pid" 2>/dev/null; then
+              for pid in $(pgrep -f '[x]ctest.*RcHarnessPackageTests' || true); do
+                sample "$pid" 3 -file "$RUNNER_TEMP/intel-ui-$pid.txt" || true
+                cat "$RUNNER_TEMP/intel-ui-$pid.txt" || true
+                python3 - "$pid" <<'PYDEBUG' || true
+          import subprocess, sys
+          probe = "p=lldb.debugger.GetSelectedTarget().GetProcess(); matches=[(t,f) for t in p for f in t if 'Fixture.click' in (f.GetFunctionName() or '')]; [(p.SetSelectedThread(t),t.SetSelectedFrame(f.GetFrameID()),lldb.debugger.HandleCommand('frame variable'),lldb.debugger.HandleCommand('po view'),lldb.debugger.HandleCommand('po content'),lldb.debugger.HandleCommand('po location'),lldb.debugger.HandleCommand('po self.descendants(content)')) for t,f in matches]"
+          try:
+              subprocess.run(['sudo', 'lldb', '--batch', '-p', sys.argv[1], '-o', 'thread backtrace all', '-o', 'script '+probe, '-o', 'detach'], timeout=45, check=False)
+          except subprocess.TimeoutExpired:
+              print('Debugger inspection timed out')
+          PYDEBUG
+                kill "$pid" || true
+              done
+              kill "$test_pid" || true
+            fi
+          ) &
+          watchdog_pid=$!
+          trap 'kill "$watchdog_pid" 2>/dev/null || true' EXIT
+          wait "$test_pid"
       - name: Build and verify Universal app on Intel
         run: |
           scripts/build_app.sh "$RUNNER_TEMP/RcHarness-intel-check.app"
