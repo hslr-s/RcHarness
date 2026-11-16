@@ -168,7 +168,7 @@ struct RemoteDashboardView: View {
     }
 
     private func navigationButton(_ page: SettingsPage) -> some View {
-        let selected = model.page == page || (page == .mapping && model.page == .phrases)
+        let selected = model.page == page
         return Button {
             model.page = page
         } label: {

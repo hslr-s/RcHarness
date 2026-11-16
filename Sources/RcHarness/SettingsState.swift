@@ -4,7 +4,7 @@ import Foundation
 enum SettingsPage: String, CaseIterable, Identifiable {
     case mapping, harness, macros, profiles, connection, about, statistics, phrases
     var id: String { rawValue }
-    static let navigation: [Self] = [.mapping, .harness, .profiles, .macros, .connection, .about]
+    static let navigation: [Self] = [.mapping, .harness, .profiles, .macros, .phrases, .connection, .about]
     var title: String {
         switch self {
         case .mapping: "按键映射"
@@ -35,7 +35,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .connection: "link"
         case .about: "gearshape"
         case .statistics: "chart.bar.fill"
-        case .phrases: "text.quote"
+        case .phrases: "text.bubble"
         }
     }
 }
