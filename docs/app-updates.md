@@ -8,13 +8,16 @@ RcHarness 使用 SwiftPM 固定的 Sparkle 2.10.1，沿用标准原生更新窗�
 
 ## 更新源与签名
 
-`Info.plist` 定义固定 HTTPS 更新源：
+`build_app.sh` 根据 `RC_HARNESS_ARCH` 将目标架构的 HTTPS 更新源写入最终 `Info.plist`：
 
-`https://github.com/tokenzz-vip/RcHarness/releases/latest/download/appcast.xml`
+- Apple Silicon：`https://github.com/tokenzz-vip/RcHarness/releases/latest/download/appcast-arm64.xml`
+- Intel：`https://github.com/tokenzz-vip/RcHarness/releases/latest/download/appcast-x86_64.xml`
+
+源文件中的 URL 为 ARM 默认值；构建 Intel 包时会覆盖。两种架构使用相同公钥，但更新源与 ZIP 完全分开，更新时保持已安装应用的架构。
 
 更新 ZIP 和 appcast 都使用 Ed25519 签名，应用在解包前验证更新包，并要求更新源签名。公钥提交在 `SUPublicEDKey` 中；私钥保存在本机登录钥匙串，Sparkle account 为 `vip.tokenzz.rcharness`。不要更换或删除此钥匙串项目；丢失私钥会影响后续更新。Apple Developer ID 签名、公证和 stapling 仍由原发布流程完成。
 
-SwiftPM 二进制制品同时包含框架与签名工具，构建脚本将框架及帮助程序嵌入应用，并使用本次构建身份由内到外签名。无需单独安装 Sparkle。SwiftPM 的 `Package.resolved` 应一并提交。
+SwiftPM 二进制制品同时包含框架与签名工具，构建脚本将框架及帮助程序嵌入应用、裁剪为单一目标架构，再使用本次构建身份由内到外签名。无需单独安装 Sparkle。SwiftPM 的 `Package.resolved` 应一并提交。
 
 ## 首次配置发布
 
@@ -33,16 +36,20 @@ gh secret set SPARKLE_PRIVATE_KEY --repo tokenzz-vip/RcHarness < "$keyfile"
 
 ## 每次发布
 
-发布 workflow 在创建正式 Release 前要求所有签名 secret 就绪。构建和公证完成、staple 后压缩最终 ZIP，再运行 `scripts/generate_update_feed.sh`，从最终包读取构建号、展示版本和最低系统版本，生成签名更新源。脚本校验下载地址、ZIP 长度、版本及签名；任一步失败不会发布 Release。ZIP、SHA256SUMS 和 appcast 作为同一 Release 的附件一起发布。
+发布 workflow 的矩阵分别在 ARM 与 Intel runner 上测试、构建、签名和公证，创建正式 Release 前要求所有签名 secret 就绪。每个架构完成公证和 staple 后压缩最终 ZIP，再运行 `scripts/generate_update_feed.sh`，从最终包读取构建号、展示版本和最低系统版本，生成签名更新源。脚本校验目标架构、包内更新源、下载地址、ZIP 长度、版本及签名；任一步失败不会发布 Release。两个构建都成功后，发布任务合并并验证 SHA256SUMS，将两个 ZIP、两个 appcast 和 SHA256SUMS 作为同一 Release 的附件一起发布。
 
-`CFBundleVersion` 使用现有 workflow 的 `github.run_number`，必须保持递增，避免重建 workflow 后重置。展示版本遵循 `vMAJOR.MINOR.PATCH` 标签。每次正式发布都必须附带 appcast，否则 latest 更新入口会失效。当前发布包含 arm64 与 x86_64 的 Universal 全量更新，不生成增量包。
+`CFBundleVersion` 使用现有 workflow 的 `github.run_number`，必须保持递增，避免重建 workflow 后重置。展示版本遵循 `vMAJOR.MINOR.PATCH` 标签。每次正式发布都必须同时附带两个架构的 appcast，否则对应的 latest 更新入口会失效。每个架构提供独立全量更新，不生成增量包。
 
-发布包命名为 `RcHarness-v版本号-macos-universal.zip`，最低系统保持 macOS 14。已有 arm64 安装继续使用相同的 appcast 地址升级到 Universal 包。
+发布包分别命名为 `RcHarness-v版本号-macos-arm64.zip` 和 `RcHarness-v版本号-macos-x86_64.zip`，最低系统保持 macOS 14。两个 ZIP 内的应用都叫 `RcHarness.app`，主程序、HAL 驱动及所有 Sparkle 辅助进程均只含该包的目标架构。
+
+旧版 Universal 应用仍读取 `appcast.xml`，本次拆分后不再发布该公共源。用户需手动下载一次对应架构的包覆盖旧应用，配置保持原位置；后续更新使用各自独立更新源。Apple Silicon 用户应下载 arm64 包；在 Rosetta 下使用 x86_64 包会继续收到 Intel 更新。
 
 本地可对专用发布目录运行：
 
 ```bash
-bash scripts/generate_update_feed.sh /path/to/release-assets v0.4.0
+# 每个目录只放对应架构的最终 ZIP。
+bash scripts/generate_update_feed.sh /path/to/arm64-assets v0.7.1 tokenzz-vip/RcHarness arm64
+bash scripts/generate_update_feed.sh /path/to/x86_64-assets v0.7.1 tokenzz-vip/RcHarness x86_64
 ```
 
 本地默认从上述钥匙串 account 读私钥；CI 从 `SPARKLE_PRIVATE_KEY` 通过标准输入传递，私钥不出现在命令参数中。

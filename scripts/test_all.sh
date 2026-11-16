@@ -3,6 +3,9 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
+echo "==> build and release script tests"
+python3 -B -m unittest discover -s "${ROOT}/scripts/tests" -p 'test_*.py'
+
 echo "==> swift test"
 swift test --package-path "${ROOT}"
 

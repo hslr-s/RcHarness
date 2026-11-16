@@ -6,10 +6,14 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIST="${1:?release assets directory required}"
 TAG="${2:?release tag required}"
 REPO="${3:-tokenzz-vip/RcHarness}"
+ARCH="${4:?target architecture required: arm64 or x86_64}"
+case "$ARCH" in arm64|x86_64) ;; *) echo "Unsupported architecture: $ARCH" >&2; exit 1 ;; esac
+ARCHIVE="$DIST/RcHarness-$TAG-macos-$ARCH.zip"
+FEED="$DIST/appcast-$ARCH.xml"
 if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
   echo 'Expected a stable vMAJOR.MINOR.PATCH tag.' >&2; exit 1
 fi
-if [[ ! -f "$DIST/RcHarness-$TAG-macos-universal.zip" ]]; then
+if [[ ! -f "$ARCHIVE" ]]; then
   echo 'Final release ZIP is missing.' >&2; exit 1
 fi
 TOOLS="$ROOT/.build/artifacts/sparkle/Sparkle"
@@ -25,13 +29,13 @@ if [[ -n "${SPARKLE_PRIVATE_KEY:-}" ]]; then
 else
   "$TOOLS/bin/generate_appcast" --account vip.tokenzz.rcharness "${ARGS[@]}" "$DIST"
 fi
-if [[ ! -f "$DIST/appcast.xml" ]]; then echo 'No appcast was generated.' >&2; exit 1; fi
+if [[ ! -f "$FEED" ]]; then echo 'No architecture-specific appcast was generated.' >&2; exit 1; fi
 if [[ -n "${SPARKLE_PRIVATE_KEY:-}" ]]; then
   printf '%s' "$SPARKLE_PRIVATE_KEY" | "$TOOLS/bin/sign_update" \
-    --ed-key-file - --verify "$DIST/appcast.xml"
+    --ed-key-file - --verify "$FEED"
 else
-  "$TOOLS/bin/sign_update" --account vip.tokenzz.rcharness --verify "$DIST/appcast.xml"
+  "$TOOLS/bin/sign_update" --account vip.tokenzz.rcharness --verify "$FEED"
 fi
 # Fail closed if the archive was not signed (e.g. wrong key), or metadata
 # differs from the app that will actually be shipped.
-python3 "$ROOT/scripts/validate_update_feed.py" "$DIST/appcast.xml" "$DIST/RcHarness-$TAG-macos-universal.zip" "$TAG" "$REPO"
+python3 "$ROOT/scripts/validate_update_feed.py" "$FEED" "$ARCHIVE" "$TAG" "$REPO" "$ARCH"

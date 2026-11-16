@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP="${1:?app bundle required}"
 MODE="${2:?signing mode required}"
+ARCH="${RC_HARNESS_ARCH:-$(uname -m)}"
+case "${ARCH}" in arm64|x86_64) ;; *) echo "Unsupported architecture: ${ARCH}; use arm64 or x86_64" >&2; exit 1 ;; esac
 FRAMEWORK="$ROOT/.build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework"
 if [[ ! -d "$FRAMEWORK" ]]; then
   echo 'Sparkle artifact missing; run swift package resolve first.' >&2
@@ -12,6 +14,7 @@ fi
 DEST="$APP/Contents/Frameworks/Sparkle.framework"
 mkdir -p "$APP/Contents/Frameworks"
 ditto "$FRAMEWORK" "$DEST"
+python3 "$ROOT/scripts/app_architecture.py" thin "$DEST" "$ARCH"
 cp "$ROOT/.build/artifacts/sparkle/Sparkle/LICENSE" "$APP/Contents/Resources/Sparkle-LICENSE"
 # No sandbox services are enabled in RcHarness. Keep Sparkle's original
 # helper entitlements when re-signing, then seal the enclosing framework.

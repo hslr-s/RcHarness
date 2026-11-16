@@ -7,10 +7,19 @@ import zipfile
 from pathlib import Path
 
 
-def validate(feed, archive, tag, repository):
+def validate(feed, archive, tag, repository, architecture):
+    if architecture not in {"arm64", "x86_64"}:
+        raise ValueError("Unsupported target architecture")
+    if Path(archive).name != f"RcHarness-{tag}-macos-{architecture}.zip":
+        raise ValueError("Archive name must match the target architecture")
+    if Path(feed).name != f"appcast-{architecture}.xml":
+        raise ValueError("Feed name must match the target architecture")
     ns = {"s": "http://www.andymatuschak.org/xml-namespaces/sparkle"}
     with zipfile.ZipFile(archive) as bundle:
         info = plistlib.loads(bundle.read("RcHarness.app/Contents/Info.plist"))
+    expected_feed = f"https://github.com/{repository}/releases/latest/download/appcast-{architecture}.xml"
+    if info.get("SUFeedURL") != expected_feed:
+        raise ValueError("Application update feed does not match the target architecture or repository")
     items = ET.parse(feed).findall("./channel/item")
     if len(items) != 1:
         raise ValueError("The release feed must contain exactly one update")

@@ -7,38 +7,31 @@ on:
 
 jobs:
   test:
-    # Match the Swift 6.4 toolchain used to validate the version tags locally.
-    runs-on: xcode-27
+    name: Test and build (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: xcode-27
+          - arch: x86_64
+            runner: macos-15-intel
+    runs-on: ${{ matrix.runner }}
     env:
-      DEVELOPER_DIR: /Applications/Xcode_27.1.app/Contents/Developer
+      RC_HARNESS_ARCH: ${{ matrix.arch }}
     steps:
       - uses: actions/checkout@v4
-      - name: Show toolchain
+      - name: Select ARM toolchain
+        if: matrix.arch == 'arm64'
+        run: echo 'DEVELOPER_DIR=/Applications/Xcode_27.1.app/Contents/Developer' >> "$GITHUB_ENV"
+      - name: Show native toolchain
         run: |
+          test "$(uname -m)" = "$RC_HARNESS_ARCH"
           xcodebuild -version
           swift --version
-      - name: Run checks
+      - name: Run native checks
         run: scripts/test_all.sh
-      - name: Build app bundle
-        run: scripts/build_app.sh "$RUNNER_TEMP/RcHarness.app"
-
-  intel-runtime:
-    name: Intel runtime acceptance
-    # GitHub's x86_64 macOS runner. Keep this separate from the ARM build
-    # job so the tests execute natively on Intel instead of under Rosetta.
-    runs-on: macos-15-intel
-    steps:
-      - uses: actions/checkout@v4
-      - name: Show Intel toolchain
+      - name: Build and verify architecture-specific app
         run: |
-          test "$(uname -m)" = x86_64
-          xcodebuild -version
-          swift --version
-      - name: Run native Intel checks
-        run: scripts/test_all.sh
-      - name: Build and verify Universal app on Intel
-        run: |
-          scripts/build_app.sh "$RUNNER_TEMP/RcHarness-intel-check.app"
-          python3 scripts/verify_universal_app.py "$RUNNER_TEMP/RcHarness-intel-check.app"
-          file "$RUNNER_TEMP/RcHarness-intel-check.app/Contents/MacOS/RcHarness"
-          file "$RUNNER_TEMP/RcHarness-intel-check.app/Contents/PlugIns/RcHarnessMicrophone.driver/Contents/MacOS/RcHarnessMicrophone"
+          scripts/build_app.sh "$RUNNER_TEMP/RcHarness.app"
+          python3 scripts/app_architecture.py verify "$RUNNER_TEMP/RcHarness.app" "$RC_HARNESS_ARCH"

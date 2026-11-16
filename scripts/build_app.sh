@@ -5,6 +5,8 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="${1:-${ROOT}/.build/RcHarness.app}"
 SIGNING_MODE="${2:-local}"
 CONFIGURATION="${RC_HARNESS_CONFIGURATION:-release}"
+ARCH="${RC_HARNESS_ARCH:-$(uname -m)}"
+case "${ARCH}" in arm64|x86_64) ;; *) echo "Unsupported architecture: ${ARCH}; use arm64 or x86_64" >&2; exit 1 ;; esac
 case "${SIGNING_MODE}" in local|distribution) ;; *) echo "Unknown signing mode" >&2; exit 1 ;; esac
 case "${CONFIGURATION}" in debug|release) ;; *) echo "Unknown build configuration" >&2; exit 1 ;; esac
 case "${OUT}" in *.app) ;; *) echo "Output must be an .app bundle path" >&2; exit 1 ;; esac
@@ -25,19 +27,13 @@ OUT="${PARENT}/$(basename "${OUT}")"
 STAGE="$(mktemp -d "${PARENT}/.rcharness-build.XXXXXX")"
 trap 'rm -rf "${STAGE}"' EXIT
 APP="${STAGE}/RcHarness.app"
-BINARIES="${STAGE}/binaries"
-mkdir -p "${BINARIES}"
-for ARCH in arm64 x86_64; do
-  swift build --package-path "${ROOT}" --arch "${ARCH}" -c "${CONFIGURATION}"
-  BIN="$(swift build --package-path "${ROOT}" --show-bin-path --arch "${ARCH}" -c "${CONFIGURATION}")/RcHarness"
-  cp "${BIN}" "${BINARIES}/RcHarness-${ARCH}"
-done
+swift build --package-path "${ROOT}" --arch "${ARCH}" -c "${CONFIGURATION}"
+BIN="$(swift build --package-path "${ROOT}" --show-bin-path --arch "${ARCH}" -c "${CONFIGURATION}")/RcHarness"
 mkdir -p "${APP}/Contents/MacOS" "${APP}/Contents/PlugIns" "${APP}/Contents/Resources"
-lipo -create \
-  "${BINARIES}/RcHarness-arm64" \
-  "${BINARIES}/RcHarness-x86_64" \
-  -output "${APP}/Contents/MacOS/RcHarness"
+cp "${BIN}" "${APP}/Contents/MacOS/RcHarness"
 cp "${ROOT}/Sources/RcHarness/Info.plist" "${APP}/Contents/Info.plist"
+# Each architecture follows its own update feed after installation.
+/usr/libexec/PlistBuddy -c "Set :SUFeedURL https://github.com/tokenzz-vip/RcHarness/releases/latest/download/appcast-${ARCH}.xml" "${APP}/Contents/Info.plist"
 cp "${ROOT}/LICENSE" "${APP}/Contents/Resources/LICENSE"
 # Info.plist is the single version source; optionally stamp a release version.
 if [[ -n "${RC_HARNESS_VERSION:-}" ]]; then
@@ -50,9 +46,9 @@ cp "${ROOT}/assets/brand/RcHarness-v2.icns" "${APP}/Contents/Resources/RcHarness
 cp "${ROOT}/assets/app/controller-dashboard-xiaomi-rc001.png" "${APP}/Contents/Resources/controller-dashboard-xiaomi-rc001.png"
 cp "${ROOT}/assets/app/controller-dashboard-xiaomi-remote.png" "${APP}/Contents/Resources/controller-dashboard-xiaomi-remote.png"
 cp "${ROOT}/assets/app/controller-dashboard-google-g9n9n.png" "${APP}/Contents/Resources/controller-dashboard-google-g9n9n.png"
-"${ROOT}/scripts/build_microphone_driver.sh" "${APP}/Contents/PlugIns" "${SIGNING_MODE}"
-bash "${ROOT}/scripts/embed_sparkle.sh" "${APP}" "${SIGNING_MODE}"
-python3 "${ROOT}/scripts/verify_universal_app.py" "${APP}"
+RC_HARNESS_ARCH="${ARCH}" "${ROOT}/scripts/build_microphone_driver.sh" "${APP}/Contents/PlugIns" "${SIGNING_MODE}"
+RC_HARNESS_ARCH="${ARCH}" bash "${ROOT}/scripts/embed_sparkle.sh" "${APP}" "${SIGNING_MODE}"
+python3 "${ROOT}/scripts/app_architecture.py" verify "${APP}" "${ARCH}"
 "${ROOT}/scripts/sign_macos_code.sh" "${APP}" vip.tokenzz.rcharness "${SIGNING_MODE}" "${ROOT}/scripts/RcHarness.entitlements"
 /usr/bin/codesign --verify --deep --strict "${APP}"
 if [[ -e "${OUT}" ]]; then mv "${OUT}" "${STAGE}/previous.app"; fi
@@ -62,4 +58,4 @@ if ! mv "${APP}" "${OUT}"; then
   fi
   exit 1
 fi
-echo "Built ${OUT}"
+echo "Built ${OUT} (${ARCH})"
