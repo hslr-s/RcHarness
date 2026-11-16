@@ -1,0 +1,410 @@
+import AppKit
+import ObjectiveC
+import SwiftUI
+import XCTest
+@testable import RcHarness
+
+@MainActor
+final class MacrosEditorInteractionTests: XCTestCase {
+    func testNarrowDarkEditorHandlesOneHundredMixedHeightSteps() async throws {
+        let fixture = try Fixture(stepCount: 100, mixedHeights: true)
+        defer { fixture.close() }
+        fixture.window.appearance = NSAppearance(named: .darkAqua)
+        fixture.window.setContentSize(NSSize(width: SettingsStyle.minimumWindowSize.width - SettingsStyle.sidebarWidth
+                                            - 1 - SettingsStyle.pagePadding * 2,
+                                            height: SettingsStyle.minimumWindowSize.height - SettingsStyle.pageHeaderHeight
+                                            - SettingsStyle.pagePadding * 2))
+        await fixture.settle()
+        try await fixture.scrollToEnd()
+        try fixture.clickAddStep()
+        await fixture.settle()
+        XCTAssertEqual(fixture.steps.count, 101)
+        try fixture.assertLastStepVisible()
+        let nameFrame = try fixture.nameField.convert(fixture.nameField.bounds, to: fixture.host)
+        XCTAssertTrue(fixture.host.bounds.contains(nameFrame), "The fixed editor header must stay inside the narrow window")
+        try fixture.snapshot("narrow-dark-long-editor")
+    }
+
+    func testSwitchingActionsDuringRecordingCancelsWithoutChangingEitherAction() async throws {
+        let fixture = try Fixture(stepCount: 50)
+        defer { fixture.close() }
+        var steps = fixture.steps
+        steps[0].mapping = ButtonMapping(action: .recordedShortcut)
+        fixture.model.updateMacroSteps(steps, for: fixture.macroID)
+        await fixture.settle()
+        let other = fixture.model.macros[1]
+        let field = try await fixture.startRecordingFirstStep()
+        try fixture.send(field.session, .keyDown, code: 40, flags: .maskCommand)
+        try fixture.clickMacroRow(1)
+        await fixture.settle()
+        XCTAssertFalse(field.session.isRecording)
+        XCTAssertEqual(fixture.steps, steps)
+        XCTAssertEqual(fixture.model.macros[1], other)
+        XCTAssertEqual(try fixture.nameField.stringValue, other.name)
+    }
+
+    func testRecordingStopsWhenItsRowScrollsAwayAndCanRestart() async throws {
+        let fixture = try Fixture(stepCount: 50)
+        defer { fixture.close() }
+        let original = RecordedShortcut(keyCode: 0, modifiers: 0, label: "A")
+        var steps = fixture.steps
+        steps[0].mapping = ButtonMapping(action: .recordedShortcut, shortcut: original)
+        fixture.model.updateMacroSteps(steps, for: fixture.macroID)
+        await fixture.settle()
+        let field = try await fixture.startRecordingFirstStep()
+        try fixture.send(field.session, .keyDown, code: 40, flags: .maskCommand)
+        try await fixture.scrollToEnd()
+        XCTAssertFalse(field.session.isRecording, "Scrolling away must cancel a partial recording")
+        XCTAssertEqual(fixture.steps[0].mapping.shortcut, original)
+        XCTAssertFalse(try fixture.send(field.session, .keyUp, code: 40), "Late releases must not revive a detached recording")
+        try await fixture.scrollToStart()
+        let next = try await fixture.startRecordingFirstStep()
+        try fixture.send(next.session, .keyDown, code: 40, flags: .maskCommand)
+        try fixture.send(next.session, .keyUp, code: 40, flags: .maskCommand)
+        try fixture.send(next.session, .flagsChanged, code: 55)
+        await fixture.settle()
+        XCTAssertEqual(fixture.steps[0].mapping.shortcut?.keyCode, 40)
+        XCTAssertEqual(fixture.steps[0].mapping.shortcut?.modifiers, CGEventFlags.maskCommand.rawValue)
+        XCTAssertFalse(next.session.isRecording)
+        XCTAssertEqual(Array(fixture.steps.dropFirst()), Array(steps.dropFirst()))
+    }
+
+    func testRemovingRecordingStepDiscardsItsQueuedCompletion() async throws {
+        let fixture = try Fixture(stepCount: 50)
+        defer { fixture.close() }
+        var steps = fixture.steps
+        steps[0].mapping = ButtonMapping(action: .recordedShortcut)
+        fixture.model.updateMacroSteps(steps, for: fixture.macroID)
+        await fixture.settle()
+        let field = try await fixture.startRecordingFirstStep()
+        try fixture.send(field.session, .keyDown, code: 40, flags: .maskCommand)
+        try fixture.send(field.session, .keyUp, code: 40, flags: .maskCommand)
+        try fixture.send(field.session, .flagsChanged, code: 55)
+        // Complete the native recording, then remove its row before the deferred callback is delivered.
+        fixture.model.updateMacroSteps(Array(steps.dropFirst()), for: fixture.macroID)
+        fixture.host.layoutSubtreeIfNeeded()
+        await fixture.settle()
+        XCTAssertFalse(field.session.isRecording)
+        XCTAssertEqual(fixture.steps, Array(steps.dropFirst()), "A queued capture must not overwrite the next row's binding")
+    }
+
+    func testMixedHeightRowsKeepTheirBindingsAfterOffscreenAndVisibleDeletions() async throws {
+        let fixture = try Fixture(stepCount: 50, mixedHeights: true)
+        defer { fixture.close() }
+        let original = fixture.steps
+        try await fixture.scrollToEnd()
+        fixture.model.updateMacroSteps(Array(original.dropFirst()), for: fixture.macroID)
+        await fixture.settle()
+        try await fixture.scrollToEnd()
+        try await fixture.disableLastVisibleStep()
+        XCTAssertEqual(fixture.steps.last?.id, original.last?.id)
+        XCTAssertEqual(fixture.steps.last?.mapping.action, .disabled)
+        XCTAssertEqual(Array(fixture.steps.dropLast()), Array(original.dropFirst().dropLast()),
+                       "Editing after an offscreen deletion must preserve every other step")
+        try await fixture.scrollToEnd()
+        try fixture.clickRemoveLastStep()
+        await fixture.settle()
+        XCTAssertEqual(fixture.steps, Array(original.dropFirst().dropLast()))
+        try await fixture.scrollToEnd()
+        try fixture.clickAddStep()
+        await fixture.settle()
+        XCTAssertEqual(fixture.steps.count, original.count - 1)
+        XCTAssertEqual(fixture.steps.last?.mapping.action, .enter)
+        try fixture.assertLastStepVisible()
+        fixture.model.flushPendingWrites()
+        XCTAssertEqual(SettingsStorage.load([SavedMacro].self, SettingsKeys.Stored.macros, defaults: fixture.defaults),
+                       fixture.model.macros, "The edited visible rows must persist against their original IDs")
+        try fixture.snapshot("mixed-height-after-edits")
+    }
+
+    func testSwitchingActionsResetsScrollAndRemovingAllStepsAllowsAddingAgain() async throws {
+        let fixture = try Fixture(stepCount: 50)
+        defer { fixture.close() }
+        try await fixture.scrollToEnd()
+        try fixture.clickMacroRow(1)
+        await fixture.settle()
+        XCTAssertEqual(try fixture.nameField.stringValue, fixture.model.macros[1].name)
+        XCTAssertEqual(try fixture.editor.contentView.bounds.minY, 0, accuracy: 1)
+        try fixture.clickMacroRow(0)
+        await fixture.settle()
+        XCTAssertEqual(try fixture.nameField.stringValue, fixture.model.macros[0].name)
+        XCTAssertEqual(try fixture.editor.contentView.bounds.minY, 0, accuracy: 1)
+        fixture.model.updateMacroSteps([], for: fixture.macroID)
+        await fixture.settle()
+        XCTAssertTrue(try fixture.visibleActionControls.isEmpty)
+        try fixture.clickAddStep()
+        await fixture.settle()
+        XCTAssertEqual(fixture.steps.count, 1)
+        XCTAssertEqual(fixture.actionControls.count, 1)
+        fixture.model.deleteMacro(fixture.macroID)
+        await fixture.settle()
+        XCTAssertEqual(try fixture.nameField.stringValue, fixture.model.macros[0].name)
+        XCTAssertEqual(try fixture.editor.contentView.bounds.minY, 0, accuracy: 1)
+    }
+
+    func testConsecutiveAdditionsKeepTheLastStepAndAddButtonVisible() async throws {
+        let fixture = try Fixture(stepCount: 50)
+        defer { fixture.close() }
+        try await fixture.scrollToEnd()
+        for _ in 0..<3 {
+            let count = fixture.steps.count
+            try fixture.clickAddStep()
+            await fixture.settle()
+            XCTAssertEqual(fixture.steps.count, count + 1)
+            try fixture.assertLastStepVisible()
+        }
+    }
+
+    func testLongEditorOnlyCreatesNearbyActionControls() throws {
+        let fixture = try Fixture(stepCount: 50)
+        defer { fixture.close() }
+        let controls = fixture.actionControls
+        XCTAssertFalse(controls.isEmpty)
+        XCTAssertLessThan(controls.count, 25,
+                          "Opening a long action must not create native controls for every offscreen step")
+    }
+
+    @MainActor
+    private final class TestWindow: NSWindow {
+        var localRecordingFocus = false
+        override var isKeyWindow: Bool { localRecordingFocus || super.isKeyWindow }
+    }
+
+    @MainActor
+    private final class Fixture {
+        let suite = "RcHarness.MacrosEditorInteraction." + UUID().uuidString
+        let defaults: UserDefaults
+        let model: RemoteDashboardModel
+        let macroID: UUID
+        let host: NSHostingView<MacrosPage>
+        let window: TestWindow
+        private var focusMethod: Method?
+        private var originalFocusImplementation: IMP?
+        private var localFocusImplementation: IMP?
+
+        init(stepCount: Int, mixedHeights: Bool = false) throws {
+            defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+            model = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
+            macroID = try XCTUnwrap(model.macros.first?.id)
+            let childID = model.macros[1].id
+            model.updateMacroSteps((0..<stepCount).map { index in
+                var step = MacroStep()
+                if mixedHeights {
+                    switch index % 5 {
+                    case 1: step.mapping = ButtonMapping(action: .rapidDelete)
+                    case 2: step.mapping = ButtonMapping(action: .recordedShortcut,
+                        shortcut: RecordedShortcut(keyCode: 40, modifiers: CGEventFlags.maskCommand.rawValue, label: "⌘K"))
+                    case 3: step.mapping = ButtonMapping(action: .macro, referenceID: childID.uuidString)
+                    case 4: step.mapping = ButtonMapping(action: .openApplication, applicationPath: "/Applications/Utilities/Terminal.app")
+                    default: break
+                    }
+                }
+                return step
+            }, for: macroID)
+            model.flushPendingWrites()
+            host = NSHostingView(rootView: MacrosPage(model: model, actionFilter: .constant(.all)))
+            window = TestWindow(contentRect: CGRect(x: 0, y: 0, width: 960, height: 650),
+                              styleMask: [.titled, .closable], backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            window.contentView = host
+            window.makeKeyAndOrderFront(nil)
+            host.layoutSubtreeIfNeeded()
+        }
+
+        var actionControls: [NSButton] {
+            descendants(host).compactMap { $0 as? NSButton }.filter {
+                $0.identifier?.rawValue == "mapping-action-picker"
+            }
+        }
+
+        var steps: [MacroStep] { model.macros.first { $0.id == macroID }?.steps ?? [] }
+
+        var visibleActionControls: [NSButton] {
+            get throws {
+                let scroll = try editor
+                return actionControls.filter {
+                    !$0.isHiddenOrHasHiddenAncestor && $0.convert($0.bounds, to: scroll.contentView).intersects(scroll.contentView.bounds)
+                }
+            }
+        }
+
+        var nameField: NSTextField {
+            get throws {
+                try XCTUnwrap(descendants(host).compactMap { $0 as? NSTextField }.first {
+                    $0.placeholderString == "组合动作名称"
+                })
+            }
+        }
+
+        var editor: NSScrollView {
+            get throws {
+                try XCTUnwrap(descendants(host).compactMap { $0 as? NSScrollView }.max {
+                    $0.convert($0.bounds, to: host).minX < $1.convert($1.bounds, to: host).minX
+                })
+            }
+        }
+
+        func settle() async {
+            for _ in 0..<6 {
+                // Process local AppKit events alongside the SwiftUI transactions.
+                while let event = NSApp.nextEvent(matching: .any, until: .distantPast, inMode: .default, dequeue: true) {
+                    NSApp.sendEvent(event)
+                }
+                host.layoutSubtreeIfNeeded()
+                await withCheckedContinuation { continuation in
+                    DispatchQueue.main.async { continuation.resume() }
+                }
+            }
+            host.layoutSubtreeIfNeeded()
+        }
+
+        func scrollToEnd() async throws {
+            let scroll = try editor
+            // Lazy content refines its estimated height as the last rows are realized.
+            for _ in 0..<3 {
+                let document = try XCTUnwrap(scroll.documentView)
+                scroll.contentView.scroll(to: NSPoint(x: 0, y: max(0, document.bounds.maxY - scroll.contentView.bounds.height)))
+                scroll.reflectScrolledClipView(scroll.contentView)
+                await settle()
+            }
+        }
+
+        func scrollToStart() async throws {
+            let scroll = try editor
+            scroll.contentView.scroll(to: .zero)
+            scroll.reflectScrolledClipView(scroll.contentView)
+            await settle()
+        }
+
+        func startRecordingFirstStep() async throws -> ShortcutCapture.CaptureField {
+            // These tests exercise real SwiftUI row/capture lifetimes with injected foreground state.
+            // They must not depend on taking focus from the developer's active application.
+            if originalFocusImplementation == nil {
+                let method = try XCTUnwrap(class_getInstanceMethod(NSApplication.self, #selector(getter: NSApplication.isActive)))
+                let focused: @convention(block) (AnyObject) -> Bool = { _ in true }
+                let implementation = imp_implementationWithBlock(focused)
+                focusMethod = method
+                localFocusImplementation = implementation
+                originalFocusImplementation = method_setImplementation(method, implementation)
+            }
+            window.localRecordingFocus = true
+            await settle()
+            let control = try XCTUnwrap(visibleActionControls.min {
+                $0.convert($0.bounds, to: host).minY < $1.convert($1.bounds, to: host).minY
+            })
+            let frame = control.convert(control.bounds, to: host)
+            try click(NSPoint(x: frame.maxX - 54, y: host.isFlipped ? frame.maxY + 24 : frame.minY - 24), in: host)
+            await settle()
+            let field = try XCTUnwrap(descendants(host).compactMap { $0 as? ShortcutCapture.CaptureField }.first,
+                                      "active=\(NSApp.isActive), key=\(window.isKeyWindow), control=\(frame), flipped=\(host.isFlipped)")
+            XCTAssertTrue(field.session.isRecording)
+            return field
+        }
+
+        @discardableResult
+        func send(_ session: ShortcutRecordingSession, _ type: CGEventType, code: UInt16, flags: CGEventFlags = []) throws -> Bool {
+            let event = try XCTUnwrap(CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: type == .keyDown))
+            event.type = type
+            event.flags = flags
+            // Deliver only to the local test session; never post synthetic keyboard events.
+            return session.handle(type, event: event)
+        }
+
+        func assertLastStepVisible(file: StaticString = #filePath, line: UInt = #line) throws {
+            let scroll = try editor
+            let controls = actionControls.filter {
+                $0.convert($0.bounds, to: scroll.contentView).intersects(scroll.contentView.bounds)
+            }
+            XCTAssertFalse(controls.isEmpty, file: file, line: line)
+            let document = try XCTUnwrap(scroll.documentView)
+            XCTAssertEqual(scroll.contentView.bounds.maxY, document.bounds.maxY, accuracy: 2, file: file, line: line)
+        }
+
+        func clickAddStep() throws {
+            let document = try XCTUnwrap(editor.documentView)
+            // The last control is left-aligned immediately above the document's bottom edge.
+            try click(NSPoint(x: 48, y: document.isFlipped ? document.bounds.maxY - 11 : 11), in: document)
+        }
+
+        func clickRemoveLastStep() throws {
+            let control = try lastVisibleActionControl()
+            let frame = control.convert(control.bounds, to: host)
+            try click(NSPoint(x: frame.maxX - 7, y: host.isFlipped ? frame.minY - 20 : frame.maxY + 20), in: host)
+        }
+
+        func lastVisibleActionControl() throws -> NSButton {
+            let scroll = try editor
+            return try XCTUnwrap(actionControls.filter {
+                $0.convert($0.bounds, to: scroll.contentView).intersects(scroll.contentView.bounds)
+            }.max { $0.convert($0.bounds, to: host).minY < $1.convert($1.bounds, to: host).minY })
+        }
+
+        func disableLastVisibleStep() async throws {
+            let existing = Set(NSApp.windows.filter(\.isVisible).map(\.windowNumber))
+            try lastVisibleActionControl().performClick(nil)
+            await settle()
+            let popup = try XCTUnwrap(NSApp.windows.first { $0.isVisible && !existing.contains($0.windowNumber) })
+            let content = try XCTUnwrap(popup.contentView)
+            // Disabled is the first row of every action category.
+            let point = NSPoint(x: 70, y: content.isFlipped ? 18 : content.bounds.height - 18)
+            for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
+                NSApp.sendEvent(try XCTUnwrap(NSEvent.mouseEvent(with: type, location: content.convert(point, to: nil),
+                    modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: popup.windowNumber,
+                    context: nil, eventNumber: 1, clickCount: 1, pressure: type == .leftMouseDown ? 1 : 0)))
+            }
+            await settle()
+            XCTAssertFalse(popup.isVisible)
+        }
+
+        func clickMacroRow(_ index: Int) throws {
+            let list = try XCTUnwrap(descendants(host).compactMap { $0 as? NSScrollView }.min {
+                $0.convert($0.bounds, to: host).minX < $1.convert($1.bounds, to: host).minX
+            })
+            let clip = list.contentView
+            try click(NSPoint(x: clip.bounds.minX + 36,
+                              y: clip.isFlipped ? clip.bounds.minY + 30 + CGFloat(index) * 64
+                                                : clip.bounds.maxY - 30 - CGFloat(index) * 64), in: clip)
+        }
+
+        func snapshot(_ name: String) throws {
+            guard let folder = ProcessInfo.processInfo.environment["RC_HARNESS_UI_SNAPSHOTS"] else { return }
+            let directory = URL(fileURLWithPath: folder, isDirectory: true)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            window.displayIfNeeded()
+            let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+            host.cacheDisplay(in: host.bounds, to: bitmap)
+            let image = NSImage(size: host.bounds.size)
+            image.lockFocus()
+            window.effectiveAppearance.performAsCurrentDrawingAppearance {
+                NSColor.controlBackgroundColor.setFill()
+                NSRect(origin: .zero, size: host.bounds.size).fill()
+            }
+            NSImage(cgImage: try XCTUnwrap(bitmap.cgImage), size: host.bounds.size).draw(in: NSRect(origin: .zero, size: host.bounds.size))
+            image.unlockFocus()
+            let rendered = try XCTUnwrap(NSBitmapImageRep(data: XCTUnwrap(image.tiffRepresentation)))
+            try XCTUnwrap(rendered.representation(using: .png, properties: [:]))
+                .write(to: directory.appendingPathComponent(name + ".png"))
+        }
+
+        func click(_ point: NSPoint, in view: NSView) throws {
+            for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
+                NSApp.sendEvent(try XCTUnwrap(NSEvent.mouseEvent(with: type, location: view.convert(point, to: nil),
+                    modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber,
+                    context: nil, eventNumber: 1, clickCount: 1, pressure: type == .leftMouseDown ? 1 : 0)))
+            }
+        }
+
+        func close() {
+            window.close()
+            if let focusMethod, let originalFocusImplementation {
+                method_setImplementation(focusMethod, originalFocusImplementation)
+            }
+            if let localFocusImplementation { imp_removeBlock(localFocusImplementation) }
+            defaults.removePersistentDomain(forName: suite)
+        }
+
+        private func descendants(_ view: NSView) -> [NSView] {
+            [view] + view.subviews.flatMap(descendants)
+        }
+    }
+}

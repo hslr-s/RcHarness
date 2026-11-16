@@ -76,7 +76,8 @@ struct MacrosPage: View {
             Divider().padding(.trailing, SettingsStyle.panelPadding - SettingsStyle.compactControlPadding)
             ScrollViewReader { proxy in
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 4) {
+                    // The preset library has hundreds of rows; only lay out the visible ones on entry.
+                    LazyVStack(alignment: .leading, spacing: 4) {
                         if model.macros.isEmpty {
                             SettingsEmpty(symbol: SettingsPage.macros.symbol, title: "还没有组合动作", detail: "把多个本机操作连成一次顺手的按键。")
                             Button { addMacro() } label: {
@@ -185,7 +186,8 @@ struct MacrosPage: View {
             Divider()
             ScrollViewReader { proxy in
                 ScrollView {
-                    VStack(alignment: .leading, spacing: SettingsStyle.Spacing.controls) {
+                    // Step editors contain native controls; defer offscreen rows for long actions.
+                    LazyVStack(alignment: .leading, spacing: SettingsStyle.Spacing.controls) {
                         if steps.wrappedValue.isEmpty {
                             Text("还没有步骤，点击下方“添加步骤”开始配置。")
                                 .font(.callout).foregroundStyle(.secondary)
