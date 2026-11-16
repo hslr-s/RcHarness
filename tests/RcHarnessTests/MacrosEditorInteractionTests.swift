@@ -438,21 +438,23 @@ final class MacrosEditorInteractionTests: XCTestCase {
 
         func click(_ point: NSPoint, in view: NSView) throws {
             let targetWindow = try XCTUnwrap(view.window)
-            func event(_ type: NSEvent.EventType) throws -> NSEvent {
-                try XCTUnwrap(NSEvent.mouseEvent(with: type, location: view.convert(point, to: nil),
+            let content = try XCTUnwrap(targetWindow.contentView)
+            var hit = content.hitTest(view.convert(point, to: content.superview))
+            while let current = hit {
+                // Native controls own a synchronous mouse tracking loop on
+                // older AppKit. Use their normal action path without waiting
+                // for events from the real desktop session.
+                if let button = current as? NSButton {
+                    button.performClick(nil)
+                    return
+                }
+                hit = current.superview
+            }
+            for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
+                NSApp.sendEvent(try XCTUnwrap(NSEvent.mouseEvent(with: type, location: view.convert(point, to: nil),
                     modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
                     windowNumber: targetWindow.windowNumber, context: nil, eventNumber: 1,
-                    clickCount: 1, pressure: type == .leftMouseDown ? 1 : 0))
-            }
-            let down = try event(.leftMouseDown)
-            // Native NSButton mouseDown enters a tracking loop that consumes
-            // mouseUp before returning. Queue it first, only in this test app.
-            NSApp.postEvent(try event(.leftMouseUp), atStart: true)
-            NSApp.sendEvent(down)
-            // SwiftUI controls may return without a native tracking loop.
-            if let up = NSApp.nextEvent(matching: .leftMouseUp, until: .distantPast,
-                                        inMode: .default, dequeue: true) {
-                NSApp.sendEvent(up)
+                    clickCount: 1, pressure: type == .leftMouseDown ? 1 : 0)))
             }
         }
 
