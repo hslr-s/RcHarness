@@ -219,12 +219,8 @@ final class PhraseAssignmentTests: XCTestCase {
 
     private func click(_ point: NSPoint, in view: NSView, window: NSWindow) throws {
         let adjusted = NSPoint(x: point.x, y: view.isFlipped ? point.y : view.bounds.height - point.y)
-        let location = view.convert(adjusted, to: nil)
-        for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
-            NSApp.sendEvent(try XCTUnwrap(NSEvent.mouseEvent(with: type, location: location, modifierFlags: [],
-                timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber,
-                context: nil, eventNumber: 1, clickCount: 1, pressure: type == .leftMouseDown ? 1 : 0)))
-        }
+        XCTAssertTrue(view.window === window)
+        try clickInTestWindow(adjusted, in: view)
     }
 
     private func snapshot(window: NSWindow, popup: NSWindow, name: String) throws {

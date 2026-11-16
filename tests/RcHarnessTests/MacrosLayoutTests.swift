@@ -22,11 +22,7 @@ final class MacrosLayoutTests: XCTestCase {
         let count = model.macros.count
         // The trailing header button in the fixed-width library pane.
         let point = NSPoint(x: 260, y: host.isFlipped ? 28 : host.bounds.height - 28)
-        for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
-            NSApp.sendEvent(try XCTUnwrap(NSEvent.mouseEvent(with: type, location: host.convert(point, to: nil),
-                modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber,
-                context: nil, eventNumber: 1, clickCount: 1, pressure: type == .leftMouseDown ? 1 : 0)))
-        }
+        try clickInTestWindow(point, in: host)
         await flushUI()
         host.layoutSubtreeIfNeeded()
         XCTAssertEqual(model.macros.count, count + 1)
