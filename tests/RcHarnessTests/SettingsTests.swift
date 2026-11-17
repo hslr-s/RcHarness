@@ -172,7 +172,7 @@ final class SettingsTests: XCTestCase {
         var mapping = RemoteMapping.defaults
         mapping[.power, .single] = ButtonMapping(action: .copy)
         mapping[.power, .double] = ButtonMapping(action: .paste)
-        mapping[.power, .long] = ButtonMapping(action: .screenshot)
+        mapping[.power, .long] = ButtonMapping(action: .showAllWindows)
         let restored = try JSONDecoder().decode(RemoteMapping.self, from: JSONEncoder().encode(mapping))
         XCTAssertEqual(restored, mapping)
         let parser = XiaomiRemoteHIDParser()
@@ -206,7 +206,7 @@ final class SettingsTests: XCTestCase {
         clock.advance(0.65)
         sendPower(false)
         clock.advance(0.38)
-        XCTAssertEqual(events.map(\.0), [.screenshot, .screenshot])
+        XCTAssertEqual(events.map(\.0), [.showAllWindows, .showAllWindows])
         XCTAssertEqual(events.map(\.1), [true, false])
     }
 

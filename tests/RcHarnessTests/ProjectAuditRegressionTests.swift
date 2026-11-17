@@ -69,17 +69,17 @@ final class ProjectAuditRegressionTests: XCTestCase {
         }
     }
 
-    func testScreenshotDoesNotReleaseAnAlreadyHeldFourKey() {
+    func testShowAllWindowsDoesNotReleaseAnAlreadyHeldUpArrow() {
         var events: [CGEvent] = []
         let sender = SystemEventSender(postEvent: { events.append($0) })
-        let four = RecordedShortcut(keyCode: VirtualKey.four, modifiers: 0, label: "4")
-        sender.sendShortcut(four, pressed: true)
-        sender.send(ButtonMapping(action: .screenshot), pressed: true)
+        let up = RecordedShortcut(keyCode: VirtualKey.upArrow, modifiers: 0, label: "↑")
+        sender.sendShortcut(up, pressed: true)
+        sender.send(ButtonMapping(action: .showAllWindows), pressed: true)
         XCTAssertEqual(events.map(\.type), [.keyDown, .keyDown])
-        XCTAssertTrue(events.last!.flags.contains([.maskCommand, .maskShift]))
-        sender.sendShortcut(four, pressed: false)
+        XCTAssertTrue(events.last!.flags.contains(.maskControl))
+        sender.sendShortcut(up, pressed: false)
         XCTAssertEqual(events.last?.type, .keyUp)
-        XCTAssertFalse(events.last!.flags.contains(.maskCommand))
+        XCTAssertFalse(events.last!.flags.contains(.maskControl))
     }
 
     func testV4MigrationPreservesEveryRemotesBindingUnbindingAndSelection() throws {

@@ -10,7 +10,7 @@ RcHarness 的产品约束为 **Intel 或 Apple Silicon + macOS 14 及以上 + �
 
 | 目标 | 是否需要 RP2040/额外硬件 | 结论 |
 |---|---:|---|
-| RC003-MS 按键控制 Mac：方向键、Enter、Backspace、Esc、模式切换、截图，以及自定义快捷键 | 否 | 直接由 macOS IOHID 接收，Joy Harness 用 CoreGraphics/系统键发送输出 |
+| RC003-MS 按键控制 Mac：方向键、Enter、Backspace、Esc、模式切换，以及自定义快捷键 | 否 | 直接由 macOS IOHID 接收，Joy Harness 用 CoreGraphics/系统键发送输出 |
 | RC003-MS 内置麦克风输入到语音应用 | 否（但需要安装随 App 提供的 HAL 音频组件） | 由 CoreBluetooth 接收 ATVV BLE 音频并输出为 Joy Harness 虚拟麦克风 |
 | 音量键切换六个 ChatGPT 任务槽位 | 是 | 默认映射是 `previousSlot`/`nextSlot`，需要 RP2040 Vendor HID |
 | ChatGPT 原生审批/拒绝、ChatGPT Micro `ACT10` 按住说话、槽位打开/同步 | 是 | 这些动作通过 RP2040 的 USB CDC + Vendor HID 送入 ChatGPT Desktop |
@@ -27,7 +27,7 @@ RcHarness 的产品约束为 **Intel 或 Apple Silicon + macOS 14 及以上 + �
 默认映射位于 `Sources/JoyHarness/ControllerMapping.swift`：
 
 - OK → Enter；Back → Backspace；Home → Escape；方向键 → 系统方向键；
-- Menu → Toggle Native/Mapping Mode；Custom → 截图；
+- Menu → Toggle Native/Mapping Mode；
 - Voice → Right Command（面向 Spokenly 等外部语音应用）；
 - 音量 −/+ → 上一个/下一个 ChatGPT 槽位。
 

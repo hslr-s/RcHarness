@@ -274,7 +274,7 @@ final class HarnessSwitcherTests: XCTestCase {
         mapping[.buttonA] = ButtonMapping(action: .mouseLeft)
         mapping[.dpadRight] = ButtonMapping(action: .paste)
         mapping[.dpadRight, .double] = ButtonMapping(action: .copy)
-        mapping[.dpadRight, .long] = ButtonMapping(action: .screenshot)
+        mapping[.dpadRight, .long] = ButtonMapping(action: .showAllWindows)
         gestures.onOutput = { value, pressed, _ in
             if value.action == .openHarnessSwitcher {
                 if pressed {

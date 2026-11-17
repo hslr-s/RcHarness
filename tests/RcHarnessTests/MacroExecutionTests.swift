@@ -27,9 +27,9 @@ final class MacroExecutionTests: XCTestCase {
     func testNestedCallsRunInOrderAndParentWaitStartsAfterChildCompletes() throws {
         let leaf = SavedMacro(name: "叶子", steps: [step(.copy, delay: 0.25), step(.paste, delay: 0.5)])
         let middle = SavedMacro(name: "中间", steps: [step(.enter, delay: 1), step(.macro, delay: 2, reference: leaf.id), step(.escape, delay: 3)])
-        let root = SavedMacro(name: "父级", steps: [step(.macro, delay: 4, reference: middle.id), step(.screenshot)])
+        let root = SavedMacro(name: "父级", steps: [step(.macro, delay: 4, reference: middle.id), step(.showAllWindows)])
         let plan = try MacroExecutionPlan(root, macros: [root, middle, leaf])
-        XCTAssertEqual(plan.events.map(\.mapping.action), [.enter, .copy, .paste, .escape, .screenshot])
+        XCTAssertEqual(plan.events.map(\.mapping.action), [.enter, .copy, .paste, .escape, .showAllWindows])
         XCTAssertEqual(plan.events.map(\.offset), [0, 1, 1.25, 3.75, 10.75])
         XCTAssertEqual(plan.duration, 10.75)
     }
@@ -94,7 +94,7 @@ final class MacroExecutionTests: XCTestCase {
             step(.macro, delay: 2, reference: empty.id),
             step(.copy, delay: .nan), step(.paste, delay: .infinity),
             step(.enter, delay: -3), step(.escape, delay: 20),
-            step(.screenshot)
+            step(.showAllWindows)
         ])
         let plan = try MacroExecutionPlan(root, macros: [root, empty])
         XCTAssertEqual(plan.events.map(\.offset), [2, 2, 2, 2, 12])

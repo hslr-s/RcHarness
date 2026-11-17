@@ -19,7 +19,6 @@ enum VirtualKey {
     static let rightOption: CGKeyCode = 0x3D
     static let c: CGKeyCode = 0x08
     static let v: CGKeyCode = 0x09
-    static let four: CGKeyCode = 0x15
     static let leftBracket: CGKeyCode = 0x21
     static let rightBracket: CGKeyCode = 0x1E
 }
@@ -107,10 +106,6 @@ final class SystemEventSender {
         case .paste: heldKey(VirtualKey.v, flags: .maskCommand, pressed: pressed)
         case .browserBack: heldKey(VirtualKey.leftBracket, flags: .maskCommand, pressed: pressed)
         case .browserForward: heldKey(VirtualKey.rightBracket, flags: .maskCommand, pressed: pressed)
-        case .screenshot:
-            guard pressed else { return }
-            shortcutEvent(RecordedShortcut(keyCode: VirtualKey.four,
-                modifiers: CGEventFlags.maskCommand.union(.maskShift).rawValue, label: "⌘⇧4"))
         case .showAllWindows:
             guard pressed else { return }
             shortcutEvent(RecordedShortcut(keyCode: VirtualKey.upArrow,

@@ -94,7 +94,7 @@ final class GlobalButtonTests: XCTestCase {
         var mapping = RemoteMapping.defaults
         mapping[.power] = ButtonMapping(action: .copy)
         mapping[.power, .double] = ButtonMapping(action: .paste)
-        mapping[.power, .long] = ButtonMapping(action: .screenshot)
+        mapping[.power, .long] = ButtonMapping(action: .showAllWindows)
         mapping[.options] = ButtonMapping(action: .fn)
         let profile = SavedKeyProfile(name: "原有方案", mapping: mapping)
         SettingsStorage.save([profile], SettingsKeys.Stored.profiles, defaults: defaults)
@@ -134,7 +134,7 @@ final class GlobalButtonTests: XCTestCase {
 
     func testChangingGlobalInputRestoresTheOldKeysProfileMappingAndOverridesTheNewKey() {
         var mapping = RemoteMapping.defaults
-        mapping[.power] = ButtonMapping(action: .screenshot)
+        mapping[.power] = ButtonMapping(action: .showAllWindows)
         mapping[.home, .double] = ButtonMapping(action: .copy)
         let model = RemoteDashboardModel(mapping: mapping, defaults: defaults)
         model.update(ButtonMapping(action: .paste), for: .power, trigger: .single)
@@ -142,7 +142,7 @@ final class GlobalButtonTests: XCTestCase {
         model.onMappingChange = { applied = $0 }
         model.setGlobalInput(nil, at: 1)
         model.setGlobalInput(.home)
-        XCTAssertEqual(applied?[.power].action, .screenshot)
+        XCTAssertEqual(applied?[.power].action, .showAllWindows)
         XCTAssertEqual(applied?[.home].action, .paste)
         XCTAssertEqual(applied?[.home, .double].action, .disabled)
         XCTAssertEqual(model.mapping[.home, .double].action, .copy)

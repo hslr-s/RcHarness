@@ -147,7 +147,7 @@ struct GlobalButtonSettings: Codable, Equatable {
 
     init(input: ControllerInput = .power,
          single: ButtonMapping = ButtonMapping(action: .openHarnessSwitcher),
-         double: ButtonMapping = ButtonMapping(action: .screenshot),
+         double: ButtonMapping = ButtonMapping(action: .disabled),
          long: ButtonMapping = ButtonMapping(action: .switchToNativeMode),
          additionalButtons: [GlobalButtonEntry] = [],
          voice: ButtonMapping = ButtonMapping(action: .fn),
@@ -169,7 +169,7 @@ struct GlobalButtonSettings: Codable, Equatable {
         self.buttons = buttons.isEmpty
             ? [GlobalButtonEntry(input: .power,
                                  single: ButtonMapping(action: .openHarnessSwitcher),
-                                 double: ButtonMapping(action: .screenshot),
+                                 double: ButtonMapping(action: .disabled),
                                  long: ButtonMapping(action: .switchToNativeMode))]
             : buttons
         self.voice = voice
@@ -192,7 +192,7 @@ struct GlobalButtonSettings: Codable, Equatable {
                 single: try values.decodeIfPresent(ButtonMapping.self, forKey: .single)
                     ?? ButtonMapping(action: .openHarnessSwitcher),
                 double: try values.decodeIfPresent(ButtonMapping.self, forKey: .double)
-                    ?? ButtonMapping(action: .screenshot),
+                    ?? ButtonMapping(action: .disabled),
                 long: try values.decodeIfPresent(ButtonMapping.self, forKey: .long)
                     ?? ButtonMapping(action: .switchToNativeMode)
             )]
@@ -247,7 +247,7 @@ struct GlobalButtonSettings: Codable, Equatable {
         if result.buttons.isEmpty {
             result.buttons = [GlobalButtonEntry(input: .power,
                                                 single: ButtonMapping(action: .openHarnessSwitcher),
-                                                double: ButtonMapping(action: .screenshot),
+                                                double: ButtonMapping(action: .disabled),
                                                 long: ButtonMapping(action: .switchToNativeMode))]
         }
         // Upgrade the previous two-key defaults without changing either key's

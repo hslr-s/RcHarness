@@ -198,14 +198,15 @@ final class ChatGPTDefaultProfileTests: XCTestCase {
         model.activateProfile(profileID)
         model.update(ButtonMapping(action: .paste), for: .dpadRight, trigger: .single)
         model.update(ButtonMapping(action: .disabled), for: .menu, trigger: .single)
-        model.update(ButtonMapping(action: .screenshot), for: .buttonY, trigger: .single)
+        model.update(ButtonMapping(action: .showAllWindows), for: .buttonY, trigger: .single)
         model.update(ButtonMapping(action: .fn), for: .options, trigger: .single)
         let globals = model.globalButtons
         let macros = model.macros
         model.resetMapping()
         XCTAssertEqual(model.mapping[.dpadRight].action, .arrowRight)
         XCTAssertEqual(model.mappingTitle(model.mapping[.menu]), "ChatGPT-切换会话与标签页")
-        XCTAssertEqual(model.mapping[.buttonY].action, .screenshot)
+        XCTAssertEqual(model.mapping[.buttonY].action, .disabled)
+        XCTAssertEqual(model.effectiveMapping[.buttonY].action, .showAllWindows)
         XCTAssertEqual(model.mapping[.buttonA, .double].referenceID, newChat.id.uuidString)
         XCTAssertEqual(model.mapping[.dpadUp, .double].referenceID, replacementID.uuidString)
         XCTAssertEqual(model.mapping[.leftShoulder, .double].action, .disabled)

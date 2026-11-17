@@ -225,7 +225,6 @@ private struct MappingCanvas: View {
     private func cardTitle(_ mapping: ButtonMapping) -> String {
         switch mapping.action {
         case .openHarnessSwitcher: "Harness 列表"
-        case .screenshot: "区域截图 ⌘⇧4"
         case .showDesktop: "显示桌面"
         case .switchToNativeMode: "原生模式"
         case .macro:
@@ -574,7 +573,7 @@ struct ActionMappingEditor: View {
     @State private var selectedMacroTagIDs: Set<String> = []
     private var actions: [RemoteAction] {
         let basic: [RemoteAction] = [.enter, .backspace, .rapidDelete, .escape, .arrowUp, .arrowDown, .arrowLeft, .arrowRight, .copy, .paste, .browserBack, .browserForward]
-        let system: [RemoteAction] = [.volumeUp, .volumeDown, .mute, .playPause, .screenshot, .showAllWindows]
+        let system: [RemoteAction] = [.volumeUp, .volumeDown, .mute, .playPause, .showAllWindows]
             + (SystemDesktopController.shared.isSupported ? [.showDesktop] : [])
             + [.mouseLeft, .mouseRight, .pointerUp, .pointerDown, .pointerLeft, .pointerRight, .scrollUp, .scrollDown]
             + (parentMacroID == nil ? [.switchToNativeMode, .switchApplications, .openHarnessSwitcher, .openPhrases] : [])
