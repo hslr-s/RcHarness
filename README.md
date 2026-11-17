@@ -115,6 +115,8 @@ RC_HARNESS_ARCH=x86_64 scripts/build_app.sh .build/apps/x86_64/RcHarness.app
 
 `test_all.sh` 包含构建/更新源脚本测试、Swift 单元测试、HAL 驱动 ASan/UBSan 测试和音频探针；缺少权限或回环设备时跳过音频探针。仅运行单元测试可用 `swift test`。构建后，应用及随包 HAL 驱动应使用同一签名身份，并通过 `codesign --verify --deep --strict` 校验。
 
+Intel（x86_64）暂时跳过 `MacrosEditorInteractionTests.testRecordingStopsWhenItsRowScrollsAwayAndCanRestart`：Intel CI 中该 UI 交互测试无法取得滚动后的快捷键录制控件（[失败记录](https://github.com/tokenzz-vip/RcHarness/actions/runs/44001847886)）。该测试仍在 ARM 上执行，其余 Intel 测试保持启用；待定位并修复此环境下的失败后恢复。
+
 音频主线程时延测量：`scripts/test_audio_output.sh --latency` 输出健康查询、调度、flush、停止及设备枚举的耗时分布；`scripts/capture_audio_latency.sh 30` 采集 Instruments 时间区间和等待线程。基线结果与尚待验证的异常场景见[专项测量记录](docs/audio-main-thread-latency.md)。
 
 界面改动后导出截图检查布局；此模式使用临时配置，不连接遥控器：

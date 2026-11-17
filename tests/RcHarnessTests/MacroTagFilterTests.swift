@@ -22,7 +22,7 @@ final class MacroTagFilterTests: XCTestCase {
         let host = try XCTUnwrap(window.contentView)
         host.layoutSubtreeIfNeeded()
         await flushUI()
-        let button = try XCTUnwrap(descendants(host).compactMap { $0 as? NSButton }.first {
+        let button = try XCTUnwrap(testViewHierarchy(host).compactMap { $0 as? NSButton }.first {
             $0.identifier?.rawValue == "macro-tag-filter"
         })
         let existing = Set(NSApp.windows.filter(\.isVisible).map(\.windowNumber))
@@ -77,7 +77,7 @@ final class MacroTagFilterTests: XCTestCase {
         defer { window.close() }
         host.layoutSubtreeIfNeeded()
         await flushUI()
-        let buttons = descendants(host).compactMap { $0 as? NSButton }
+        let buttons = testViewHierarchy(host).compactMap { $0 as? NSButton }
         let tagButton = try XCTUnwrap(buttons.first { $0.identifier?.rawValue == "macro-tag-filter" })
         let macroButton = try XCTUnwrap(buttons.first { $0.identifier?.rawValue == "macro-reference-picker" })
         let existing = Set(NSApp.windows.filter(\.isVisible).map(\.windowNumber))
@@ -150,7 +150,7 @@ final class MacroTagFilterTests: XCTestCase {
             defer { window.close() }
             host.layoutSubtreeIfNeeded()
             await flushUI()
-            let button = try XCTUnwrap(descendants(host).compactMap { $0 as? NSButton }.first {
+            let button = try XCTUnwrap(testViewHierarchy(host).compactMap { $0 as? NSButton }.first {
                 $0.identifier?.rawValue == "mapping-action-picker"
             })
             let existing = Set(NSApp.windows.filter(\.isVisible).map(\.windowNumber))
@@ -210,22 +210,10 @@ final class MacroTagFilterTests: XCTestCase {
         XCTAssertEqual(capture.terminationStatus, 0)
     }
 
-    private func descendants(_ view: NSView) -> [NSView] {
-        [view] + view.subviews.flatMap(descendants)
-    }
-
     private func click(_ point: NSPoint, in view: NSView, window: NSWindow) throws {
         let adjusted = NSPoint(x: point.x, y: view.isFlipped ? point.y : view.bounds.height - point.y)
         XCTAssertTrue(view.window === window)
         try clickInTestWindow(adjusted, in: view)
-    }
-
-    private func flushUI() async {
-        for _ in 0..<3 {
-            await withCheckedContinuation { continuation in
-                DispatchQueue.main.async { continuation.resume() }
-            }
-        }
     }
 
     private func snapshot(window: NSWindow, popup: NSWindow) throws {

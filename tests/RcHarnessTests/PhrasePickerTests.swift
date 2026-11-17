@@ -23,13 +23,6 @@ final class PhrasePickerTests: XCTestCase {
         window.contentView = host
         window.makeKeyAndOrderFront(nil)
         defer { window.close() }
-        func flushUI() async {
-            for _ in 0..<3 {
-                await withCheckedContinuation { continuation in
-                    DispatchQueue.main.async { continuation.resume() }
-                }
-            }
-        }
         func click(_ point: NSPoint, count: Int) throws {
             let point = NSPoint(x: point.x, y: host.isFlipped ? point.y : host.bounds.height - point.y)
             let location = host.convert(point, to: nil)

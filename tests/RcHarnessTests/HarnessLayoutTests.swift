@@ -57,8 +57,7 @@ final class HarnessLayoutTests: XCTestCase {
     }
 
     private func switchFrames(in host: NSView) -> [NSRect] {
-        func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }
-        return descendants(host).compactMap { $0 as? NSSwitch }
+        return testViewHierarchy(host).compactMap { $0 as? NSSwitch }
             .map { host.convert($0.bounds, from: $0) }
             .sorted { $0.minY < $1.minY }
     }

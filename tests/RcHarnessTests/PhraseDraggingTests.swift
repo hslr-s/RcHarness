@@ -16,7 +16,7 @@ final class PhraseDraggingTests: XCTestCase {
             XCTAssertNotNil(table.dataSource?.tableView?(table, pasteboardWriterForRow: 1))
             let cell = try XCTUnwrap(table.view(atColumn: 0, row: 1, makeIfNecessary: true) as? NSTableCellView)
             cell.layoutSubtreeIfNeeded()
-            let handle = try XCTUnwrap(descendants(cell).first { $0.identifier?.rawValue.hasPrefix("phrase-drag-handle:") == true })
+            let handle = try XCTUnwrap(testViewHierarchy(cell).first { $0.identifier?.rawValue.hasPrefix("phrase-drag-handle:") == true })
             let title = try XCTUnwrap(cell.textField)
             XCTAssertLessThan(handle.convert(handle.bounds, to: cell).maxX, title.convert(title.bounds, to: cell).minX)
         }
@@ -68,7 +68,7 @@ final class PhraseDraggingTests: XCTestCase {
         window.contentView = host
         defer { window.close() }
         host.layoutSubtreeIfNeeded()
-        try body(model, XCTUnwrap(descendants(host).compactMap { $0 as? NSTableView }.first))
+        try body(model, XCTUnwrap(testViewHierarchy(host).compactMap { $0 as? NSTableView }.first))
     }
 
     func testDraggingVisibleRowStartsANativeDragSession() throws {
@@ -84,7 +84,7 @@ final class PhraseDraggingTests: XCTestCase {
         window.contentView = host
         defer { window.close() }
         host.layoutSubtreeIfNeeded()
-        let table = try XCTUnwrap(descendants(host).compactMap { $0 as? NSTableView }.first)
+        let table = try XCTUnwrap(testViewHierarchy(host).compactMap { $0 as? NSTableView }.first)
         let rowRect = table.rect(ofRow: 0)
         let point = NSPoint(x: rowRect.minX + 14, y: rowRect.midY)
         let target = try XCTUnwrap(table.hitTest(point))
@@ -109,10 +109,6 @@ final class PhraseDraggingTests: XCTestCase {
         NSApp.postEvent(try event(.leftMouseUp, NSPoint(x: start.x, y: start.y - 50)), atStart: false)
         target.mouseDown(with: try event(.leftMouseDown, start))
         XCTAssertEqual(sessions, 1, "Dragging a visible phrase row must start a native drag, not just click its selection button")
-    }
-
-    private func descendants(_ view: NSView) -> [NSView] {
-        [view] + view.subviews.flatMap(descendants)
     }
 }
 

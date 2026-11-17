@@ -373,9 +373,6 @@ final class RemoteDashboardModel: ObservableObject {
         case .idle: outputDevices.contains(where: { $0.id == outputUID }) ? "设备可用" : "等待音频设备"
         }
     }
-    func choose(_ action: RemoteAction, for input: ControllerInput) {
-        update(ButtonMapping(action: action), for: input, trigger: .single)
-    }
     var effectiveMapping: RemoteMapping { globalButtons.applying(to: mapping, profile: remoteProfile) }
 
     func isGlobalInput(_ input: ControllerInput) -> Bool {

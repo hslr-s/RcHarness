@@ -100,8 +100,7 @@ final class PhraseAssignmentTests: XCTestCase {
     }
 
     private func assertListMatchesModel(_ model: RemoteDashboardModel, in host: NSView) throws {
-        func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }
-        let table = try XCTUnwrap(descendants(host).compactMap { $0 as? NSTableView }.first)
+        let table = try XCTUnwrap(testViewHierarchy(host).compactMap { $0 as? NSTableView }.first)
         table.layoutSubtreeIfNeeded()
         XCTAssertEqual(table.numberOfRows, model.orderedPhrases.count)
         for (row, phrase) in model.orderedPhrases.enumerated() {
@@ -109,11 +108,11 @@ final class PhraseAssignmentTests: XCTestCase {
             XCTAssertEqual(cell.textField?.stringValue, phrase.displayTitle,
                            "Visible phrase order must update as soon as the picker selection returns")
             let bindings = PhraseAssignments.inputs.filter { model.phraseAssignments[$0] == phrase.id }
-            let images = descendants(cell).compactMap { $0 as? NSImageView }
+            let images = testViewHierarchy(cell).compactMap { $0 as? NSImageView }
             let expectedLabels = bindings.isEmpty ? ["拖动调整顺序"] : bindings.map { "已绑定" + $0.label }
             XCTAssertEqual(images.compactMap { $0.image?.accessibilityDescription }, expectedLabels,
                            "Visible binding symbols must refresh with the assignment")
-            XCTAssertEqual(descendants(cell).contains { $0.identifier?.rawValue.hasPrefix("phrase-drag-handle:") == true },
+            XCTAssertEqual(testViewHierarchy(cell).contains { $0.identifier?.rawValue.hasPrefix("phrase-drag-handle:") == true },
                            bindings.isEmpty, "A newly bound row must immediately lose its drag handle")
         }
     }
@@ -244,9 +243,8 @@ final class PhraseAssignmentTests: XCTestCase {
     /// and AppKit versions. Route through the laid-out native pointer surface.
     @discardableResult
     private func clickPad(_ input: ControllerInput, in host: NSView) throws -> NSPoint {
-        func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }
         host.layoutSubtreeIfNeeded()
-        let pad = try XCTUnwrap(descendants(host).compactMap { $0 as? PhrasePadInputView }.first)
+        let pad = try XCTUnwrap(testViewHierarchy(host).compactMap { $0 as? PhrasePadInputView }.first)
         let window = try XCTUnwrap(pad.window)
         let position = PhrasePadLayout.position(for: input)
         let point = NSPoint(x: pad.bounds.minX + position.x * pad.bounds.width / 212,
@@ -290,13 +288,4 @@ final class PhraseAssignmentTests: XCTestCase {
         let bitmap = try XCTUnwrap(NSBitmapImageRep(data: XCTUnwrap(image.tiffRepresentation)))
         try bitmap.representation(using: .png, properties: [:])?.write(to: directory.appendingPathComponent(name + ".png"))
     }
-
-    private func flushUI() async {
-        for _ in 0..<3 {
-            await withCheckedContinuation { continuation in
-                DispatchQueue.main.async { continuation.resume() }
-            }
-        }
-    }
-
 }

@@ -12,6 +12,18 @@ func drainMainQueue() async {
     }
 }
 
+/// Allow the deferred SwiftUI updates used by the UI fixtures to settle.
+@MainActor
+func flushUI() async {
+    for _ in 0..<3 { await drainMainQueue() }
+}
+
+/// Include the root as well as all nested AppKit views, in depth-first order.
+@MainActor
+func testViewHierarchy(_ view: NSView) -> [NSView] {
+    [view] + view.subviews.flatMap(testViewHierarchy)
+}
+
 /// Deterministic scheduler for controllers that take a
 /// `RemoteVoiceSessionController.Scheduler`; time only moves via `advance`.
 final class TestClock {
@@ -40,9 +52,6 @@ final class TestClock {
 /// path because older AppKit waits synchronously for mouseUp during mouseDown.
 @MainActor
 func clickInTestWindow(_ point: NSPoint, in view: NSView) throws {
-    func descendants(_ view: NSView) -> [NSView] {
-        [view] + view.subviews.flatMap(descendants)
-    }
     let targetWindow = try XCTUnwrap(view.window)
     let content = try XCTUnwrap(targetWindow.contentView)
     let location = view.convert(point, to: nil)
@@ -63,7 +72,7 @@ func clickInTestWindow(_ point: NSPoint, in view: NSView) throws {
     // Only fall back to native bounds when the hosting root owns the hit.
     // Custom pointer views must keep priority over buttons underneath them.
     if hitView === content,
-       let control = descendants(content).compactMap({ $0 as? NSControl }).filter({
+       let control = testViewHierarchy(content).compactMap({ $0 as? NSControl }).filter({
         $0.cell is NSButtonCell && !$0.isHiddenOrHasHiddenAncestor && !$0.bounds.isEmpty
             && $0.convert($0.bounds, to: nil).contains(location)
     }).min(by: { $0.bounds.width * $0.bounds.height < $1.bounds.width * $1.bounds.height }) {

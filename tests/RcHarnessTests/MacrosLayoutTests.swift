@@ -27,7 +27,7 @@ final class MacrosLayoutTests: XCTestCase {
         host.layoutSubtreeIfNeeded()
         XCTAssertEqual(model.macros.count, count + 1)
         let created = try XCTUnwrap(model.macros.last)
-        let nameField = try XCTUnwrap(descendants(host).compactMap { $0 as? NSTextField }.first {
+        let nameField = try XCTUnwrap(testViewHierarchy(host).compactMap { $0 as? NSTextField }.first {
             $0.placeholderString == "组合动作名称"
         })
         XCTAssertEqual(nameField.stringValue, created.name)
@@ -133,17 +133,5 @@ final class MacrosLayoutTests: XCTestCase {
 
     private func scrollViews(in view: NSView) -> [NSScrollView] {
         (view as? NSScrollView).map { [$0] } ?? view.subviews.flatMap { scrollViews(in: $0) }
-    }
-
-    private func descendants(_ view: NSView) -> [NSView] {
-        [view] + view.subviews.flatMap(descendants)
-    }
-
-    private func flushUI() async {
-        for _ in 0..<3 {
-            await withCheckedContinuation { continuation in
-                DispatchQueue.main.async { continuation.resume() }
-            }
-        }
     }
 }

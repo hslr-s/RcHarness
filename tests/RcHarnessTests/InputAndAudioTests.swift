@@ -276,9 +276,7 @@ final class InputAndAudioTests: XCTestCase {
         // Finish each batch on the main queue without using real timer waits.
         while !playback.completions.isEmpty {
             playback.completeAll()
-            await withCheckedContinuation { continuation in
-                DispatchQueue.main.async { continuation.resume() }
-            }
+            await drainMainQueue()
         }
         clock.advance(0.05)
         XCTAssertEqual(output.state, .idle)
