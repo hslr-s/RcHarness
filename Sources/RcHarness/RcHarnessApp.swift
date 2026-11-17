@@ -123,6 +123,21 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
             self?.sendAction(mapping, pressed: pressed, input: input)
         }
         windowController = DashboardWindowController(model: dashboardModel)
+        dashboardModel.setup.onRoutingChange = { [weak self] in
+            guard let self else { return }
+            self.applicationSwitcher.reset()
+            self.harnessSwitcher.model.reset(reason: "setup-navigation")
+            self.phrasePicker.model.reset()
+            self.gestures.cancel()
+            self.cancelMacros()
+            self.heldVoiceInput = nil
+            self.voiceStopInputs.removeAll()
+            self.voiceSession.cancel()
+            self.voice.cancelActiveStream()
+            self.dashboardModel.stopTestTone()
+            if self.dashboardModel.setup.isPresented { self.setOperationMode(.mapping) }
+            self.statusMenu.item(withTag: 100)?.isEnabled = !self.dashboardModel.setup.isPresented
+        }
         windowController.onWindowClose = { [weak self] in
             // Closing the only window leaves RcHarness running from the menu
             // bar, so it should no longer occupy a Dock slot.
@@ -133,13 +148,14 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
         )
         NSApp.setActivationPolicy(dashboardModel.showDockIcon ? .regular : .accessory)
         if renderSettingsIfRequested() { return }
+        dashboardModel.setup.startIfNeeded()
         dashboardModel.updates.start()
         let workspaceNotifications = NSWorkspace.shared.notificationCenter
         workspaceNotifications.addObserver(self, selector: #selector(suspendVoice), name: NSWorkspace.willSleepNotification, object: nil)
         workspaceNotifications.addObserver(self, selector: #selector(resumeVoice), name: NSWorkspace.didWakeNotification, object: nil)
         workspaceNotifications.addObserver(self, selector: #selector(foregroundApplicationChanged(_:)),
                                            name: NSWorkspace.didActivateApplicationNotification, object: nil)
-        if dashboardModel.openAtLaunch {
+        if dashboardModel.openAtLaunch || dashboardModel.setup.isPresented {
             // Finder/login-item launches can finish before AppKit has made the
             // process active. Defer the first presentation until the app is
             // active, then retry once from the next run-loop turn as a
@@ -313,6 +329,9 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
         let openItem = NSMenuItem(title: "打开 RcHarness", action: #selector(showWindow), keyEquivalent: "o")
         openItem.target = self
         statusMenu.addItem(openItem)
+        let setupItem = NSMenuItem(title: "设置向导…", action: #selector(showSetup), keyEquivalent: "")
+        setupItem.target = self
+        statusMenu.addItem(setupItem)
         statusMenu.addItem(.separator())
         let modeItem = NSMenuItem(title: "模式：映射", action: #selector(toggleMode), keyEquivalent: "")
         modeItem.target = self
@@ -396,6 +415,8 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
         voice.canStartCapture = { [weak self] in
             guard let self else { return false }
             return self.mode == .mapping && self.voiceSession.isIdle
+                && self.dashboardModel.setup.allowsVoiceCapture
+                && (!self.dashboardModel.setup.isPresented || self.dashboardModel.setupReadiness.ready)
                 && self.dashboardModel?.microphoneOperationInProgress != true
                 && !self.harnessSwitcher.model.isPresented && !self.phrasePicker.model.isPresented
                 && !self.applicationSwitcher.isPresented
@@ -404,6 +425,7 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
             guard self?.harnessSwitcher.model.isPresented != true,
                   self?.applicationSwitcher.isPresented != true,
                   self?.phrasePicker.model.isPresented != true else { return }
+            self?.dashboardModel?.setup.observeVoice(event)
             if case .started = event {
                 self?.dashboardModel?.stopTestTone()
             }
@@ -415,11 +437,13 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
             guard self?.harnessSwitcher.model.isPresented != true,
                   self?.applicationSwitcher.isPresented != true,
                   self?.phrasePicker.model.isPresented != true else { return }
+            self?.dashboardModel?.setup.observeSamples(samples.count)
             self?.voiceSession.append(samples)
         }
     }
 
     private func handle(input: ControllerInput, pressed: Bool) {
+        if dashboardModel.setup.consumes(input, pressed: pressed) { return }
         if applicationSwitcher.handle(input, pressed: pressed) {
             // Keep the other modal routers' physical key tracking up to date.
             _ = phrasePicker.model.handle(input, pressed: pressed)
@@ -681,6 +705,11 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
 
     @objc private func showExistingWindow(_ notification: Notification) { showWindow() }
 
+    @objc private func showSetup() {
+        dashboardModel.setup.present()
+        showWindow()
+    }
+
     @objc private func showWindow() {
         applicationSwitcher.cancel()
         harnessSwitcher.model.dismiss(reason: "dashboard-opened")
@@ -737,7 +766,11 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
             return CommandLine.arguments[flag + 1]
         }()
         func render(_ index: Int) {
-            guard index <= pages.count + 19 else { NSApp.terminate(nil); return }
+            guard index <= pages.count + 19 else {
+                renderSetupPreviews(in: directory)
+                NSApp.terminate(nil)
+                return
+            }
             let applicationSwitcherPreview = index == pages.count + 19
             let codexPreview = index == pages.count
             let switcherPreview = index == pages.count + 1
@@ -990,6 +1023,45 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
         return true
     }
 
+    /// Fixtures use only the renderer's isolated defaults suite. No hardware,
+    /// permission requests, installation or synthesized events are involved.
+    private func renderSetupPreviews(in directory: URL) {
+        let preview = RemoteDashboardModel(mapping: .defaults, defaults: settingsDefaults)
+        preview.bluetoothGranted = true
+        preview.inputGranted = true
+        preview.accessibilityGranted = true
+        preview.microphoneGranted = true
+        preview.isConnected = true
+        preview.voiceReady = true
+        preview.voiceStatus = "语音服务已连接"
+        preview.microphoneInstalled = true
+        preview.microphoneUpdateAvailable = false
+        preview.outputUID = RemoteMicrophoneOutput.deviceUID
+        preview.outputDevices = [RemoteAudioDevice(id: preview.outputUID, name: RemoteMicrophoneOutput.deviceName)]
+        preview.setup.present()
+        for step in SetupStep.allCases {
+            let content = NSHostingView(rootView: SetupView(model: preview, setup: preview.setup))
+            content.appearance = NSApp.appearance
+            content.frame = NSRect(origin: .zero, size: windowController.window?.contentView?.bounds.size ?? SettingsStyle.minimumWindowSize)
+            content.layoutSubtreeIfNeeded()
+            if let bitmap = content.bitmapImageRepForCachingDisplay(in: content.bounds) {
+                content.cacheDisplay(in: content.bounds, to: bitmap)
+                if let data = bitmap.representation(using: .png, properties: [:]) {
+                    try? data.write(to: directory.appendingPathComponent("setup-" + step.rawValue + ".png"))
+                }
+            }
+            _ = preview.setup.consumes(.dpadUp, pressed: true)
+            preview.setup.toolConfigured = true
+            if step == .test {
+                preview.setup.observeVoice(.started)
+                preview.setup.observeSamples(1600)
+                preview.setup.observeVoice(.ended)
+                preview.setup.transcriptConfirmed = true
+            }
+            preview.setup.advance(preview.setupReadiness)
+        }
+    }
+
     private func updateStatusItem() {
         DispatchQueue.main.async {
             let connection = self.hid.isConnected ? "遥控器已连接" : "遥控器未连接"
@@ -1028,7 +1100,7 @@ final class DashboardWindowController: NSWindowController, NSWindowDelegate {
         for name in [NSControl.textDidEndEditingNotification, NSText.didEndEditingNotification] {
             NotificationCenter.default.addObserver(self, selector: #selector(editorDidEndEditing(_:)), name: name, object: nil)
         }
-        let hostingView = NSHostingView(rootView: RemoteDashboardView(model: model))
+        let hostingView = NSHostingView(rootView: HarnessRootView(model: model, setup: model.setup))
         hostingView.translatesAutoresizingMaskIntoConstraints = false
         window.contentView = hostingView
         NSLayoutConstraint.activate([
@@ -1050,6 +1122,7 @@ final class DashboardWindowController: NSWindowController, NSWindowDelegate {
     func windowDidResignKey(_ notification: Notification) { model.flushPendingWrites() }
 
     func windowWillClose(_ notification: Notification) {
+        model.setup.pause()
         model.flushPendingWrites()
         onWindowClose?()
     }

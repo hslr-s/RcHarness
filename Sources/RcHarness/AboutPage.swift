@@ -45,7 +45,7 @@ struct AboutPage: View {
                 }.fixedSize(horizontal: false, vertical: true)
             }
             GlobalButtonsPanel(model: model)
-            permissionsPanel
+            PermissionsPanel(model: model)
                 .id(Self.permissionsSectionID)
             SettingsPanel("通用", symbol: "gearshape") {
                 SettingsPreference(symbol: "arrow.up.arrow.down", title: "配置导入与导出", detail: "备份各遥控器独立的全局按键、键位方案、组合动作和常用语。") {
@@ -89,8 +89,8 @@ struct AboutPage: View {
                     .labelsHidden().pickerStyle(.segmented).frame(width: 240)
                 }
                 Divider()
-                SettingsPreference(symbol: "arrow.counterclockwise.circle", title: "首次使用", detail: "查看设备连接、权限和麦克风设置。") {
-                    Button("查看设置指引") { model.page = .connection }
+                SettingsPreference(symbol: "arrow.counterclockwise.circle", title: "首次使用", detail: "逐步检查权限、遥控器连接和语音输入，可随时继续未完成的设置。") {
+                    Button(model.setup.completed ? "重新运行设置向导" : "继续设置向导") { model.setup.present() }
                 }
             }
             SettingsPanel("诊断与支持", symbol: "stethoscope") {
@@ -104,38 +104,6 @@ struct AboutPage: View {
         }
     }
 
-    private var permissionsPanel: some View {
-        SettingsPanel("权限", symbol: "shield.lefthalf.filled") {
-            permissionRow("蓝牙", detail: "连接遥控器及其语音服务", symbol: "antenna.radiowaves.left.and.right", granted: model.bluetoothGranted) {
-                openSystemSettings("x-apple.systempreferences:com.apple.BluetoothSettings")
-            }
-            Divider()
-            permissionRow("输入监控", detail: "接收遥控器的普通按键", symbol: "keyboard", granted: model.inputGranted) {
-                if !CGRequestListenEventAccess() { openSystemSettings("x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent") }
-            }
-            Divider()
-            permissionRow("辅助功能", detail: "向当前 App 发送键盘与鼠标操作", symbol: "hand.raised", granted: model.accessibilityGranted) {
-                let key = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
-                _ = AXIsProcessTrustedWithOptions([key: true] as CFDictionary)
-                openSystemSettings("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
-            }
-            Divider()
-            permissionRow("麦克风", detail: "将遥控器语音写入回环设备", symbol: "mic", granted: model.microphoneGranted) {
-                if AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined {
-                    AVCaptureDevice.requestAccess(for: .audio) { _ in DispatchQueue.main.async { model.refreshPermissions() } }
-                } else { openSystemSettings("x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone") }
-            }
-        }
-    }
-
-    private func permissionRow(_ title: String, detail: String, symbol: String, granted: Bool, action: @escaping () -> Void) -> some View {
-        SettingsPreference(symbol: symbol, title: title, detail: detail) {
-            HStack(spacing: SettingsStyle.Spacing.controls) {
-                SettingsStatus(title: granted ? "已授权" : "待授权", color: granted ? .green : .orange)
-                Button(granted ? "系统设置" : "前往授权", action: action).frame(width: 84)
-            }
-        }
-    }
 }
 
 private struct AppUpdateSettingsView: View {

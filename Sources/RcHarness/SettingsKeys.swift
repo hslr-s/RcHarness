@@ -24,6 +24,7 @@ enum SettingsKeys {
     static let selectedRemoteProfileID = "RcHarness.selectedRemoteProfileID"
 
     enum Stored {
+        static let setupProgress = "setupProgress"
         static let configurationSnapshot = "configurationSnapshot"
         static let macroPresetsVersion = "macroPresetsVersion"
         static let globalButtons = "globalButtons"

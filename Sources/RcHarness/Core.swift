@@ -44,6 +44,9 @@ struct RemoteProfile: Identifiable, Equatable {
     var validation: RemoteValidation = .awaitingHardware
     /// PnP vendor namespaces observed for this model's exact VID/PID.
     var voicePnPVendorIDSources: Set<UInt8> = [2]
+    /// Physical buttons held together to enter Bluetooth pairing mode.
+    var pairingButtons: [ControllerInput] = []
+    var pairingHint: String = ""
 
     var selectionName: String {
         validation == .voiceVerified ? shortName : shortName + "（" + validation.rawValue + "）"
@@ -129,7 +132,9 @@ enum RemoteProfiles {
         inputs: [.buttonA, .buttonB, .buttonY, .options, .menu, .home, .power,
                  .dpadUp, .dpadDown, .dpadLeft, .dpadRight, .leftShoulder, .rightShoulder],
         artwork: .xiaomi2,
-        validation: .voiceVerified
+        validation: .voiceVerified,
+        pairingButtons: [.home, .menu],
+        pairingHint: "保持同时长按，直到遥控器出现在蓝牙设置的“附近设备”中，再松开并点击“连接”。"
     )
 
     static let xiaomiRC003 = RemoteProfile(
@@ -146,7 +151,9 @@ enum RemoteProfiles {
         bluetoothNameFragments: ["xiaomi bluetooth remote 2", "小米蓝牙遥控器"],
         inputs: [.buttonA, .buttonB, .buttonY, .options, .menu, .home, .power,
                  .dpadUp, .dpadDown, .dpadLeft, .dpadRight, .leftShoulder, .rightShoulder],
-        validation: .voiceVerified
+        validation: .voiceVerified,
+        pairingButtons: [.home, .menu],
+        pairingHint: "保持同时长按，直到遥控器出现在蓝牙设置的“附近设备”中，再松开并点击“连接”。"
     )
 
     static let googleG9N9N = RemoteProfile(
@@ -163,7 +170,9 @@ enum RemoteProfiles {
         adapter: .chromecast,
         artwork: .chromecast,
         validation: .voiceVerified,
-        voicePnPVendorIDSources: [1, 2]
+        voicePnPVendorIDSources: [1, 2],
+        pairingButtons: [.buttonB, .home],
+        pairingHint: "同时长按约 3 秒，直到指示灯开始闪烁，再在蓝牙设置中选择遥控器并点击“连接”。"
     )
 
     static let all: [RemoteProfile] = [xiaomiRC001, xiaomiRC003, googleG9N9N]

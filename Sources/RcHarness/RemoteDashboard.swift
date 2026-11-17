@@ -12,22 +12,28 @@ import SwiftUI
 @MainActor
 final class RemoteDashboardModel: ObservableObject {
     let updates = AppUpdateModel()
+    let setup: SetupFlow
     @Published var page: SettingsPage = .mapping {
         didSet { if page != oldValue { flushPendingWrites() } }
     }
     @Published private(set) var permissionsNavigationRequest: UUID?
     @Published private(set) var noticeNavigationRequest: ActionNotice.NavigationRequest?
-    @Published var isConnected = false
+    @Published var isConnected = false {
+        didSet { if oldValue && !isConnected { setup.resetEvidence() } }
+    }
     @Published private(set) var connectedRemoteProfileIDs: Set<String> = []
     @Published var operationMode: ControllerOperationMode = .mapping
     @Published var voiceStatus = "遥控器麦克风未连接"
-    @Published var voiceReady = false
+    @Published var voiceReady = false {
+        didSet { if oldValue && !voiceReady { setup.resetVoiceTest() } }
+    }
     var voiceDiagnostics = ""
     @Published var isStreaming = false
     @Published var audioOutputState: RemoteAudioOutputState = .idle {
         didSet {
             switch audioOutputState {
             case .failed(let message):
+                setup.resetVoiceTest()
                 postNotice(message, level: .error, recoveryAction: .connection, source: .audioOutput)
             case .streaming:
                 resolveNotices(from: .audioOutput)
@@ -109,7 +115,14 @@ final class RemoteDashboardModel: ObservableObject {
         }
     }
     @Published var outputDevices: [RemoteAudioDevice] = []
-    @Published var outputUID: String { didSet { stopTestTone(); defaults.set(outputUID, forKey: SettingsKeys.outputUID); onAudioChange?() } }
+    @Published var outputUID: String {
+        didSet {
+            if outputUID != oldValue { setup.resetVoiceTest() }
+            stopTestTone()
+            defaults.set(outputUID, forKey: SettingsKeys.outputUID)
+            onAudioChange?()
+        }
+    }
     @Published var gain: Double {
         didSet {
             let normalized = gain.isFinite ? min(24, max(0, gain)) : 0
@@ -165,10 +178,18 @@ final class RemoteDashboardModel: ObservableObject {
         }
     }
     @Published private(set) var loginEnabled = SMAppService.mainApp.status == .enabled
-    @Published var inputGranted = CGPreflightListenEventAccess()
-    @Published var accessibilityGranted = AXIsProcessTrusted()
-    @Published var microphoneGranted = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
-    @Published var bluetoothGranted = CBManager.authorization == .allowedAlways
+    @Published var inputGranted = CGPreflightListenEventAccess() {
+        didSet { if !inputGranted { setup.resetVoiceTest() } }
+    }
+    @Published var accessibilityGranted = AXIsProcessTrusted() {
+        didSet { if !accessibilityGranted { setup.resetVoiceTest() } }
+    }
+    @Published var microphoneGranted = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized {
+        didSet { if !microphoneGranted { setup.resetVoiceTest() } }
+    }
+    @Published var bluetoothGranted = CBManager.authorization == .allowedAlways {
+        didSet { if !bluetoothGranted { setup.resetVoiceTest() } }
+    }
 
     let live = RemoteLiveStatus()
     let usageStore: UsageStore
@@ -205,6 +226,7 @@ final class RemoteDashboardModel: ObservableObject {
          noticeSchedule: @escaping RemoteVoiceSessionController.Scheduler = RemoteVoiceSessionController.mainQueue,
          settingsSchedule: @escaping RemoteVoiceSessionController.Scheduler = RemoteVoiceSessionController.mainQueue) {
         self.defaults = defaults
+        self.setup = SetupFlow(defaults: defaults)
         self.monotonicTime = monotonicTime
         self.noticeSchedule = noticeSchedule
         self.settingsWrites = SettingsWriteBuffer(defaults: defaults, schedule: settingsSchedule)
@@ -311,6 +333,7 @@ final class RemoteDashboardModel: ObservableObject {
     func selectRemoteProfile(_ id: String) {
         guard let profile = availableRemoteProfiles.first(where: { $0.id == id }),
               profile.id != remoteProfile.id else { return }
+        setup.resetEvidence()
         cancelConfigurationImport()
         stopTestTone()
         editorVisible = false
@@ -419,6 +442,7 @@ final class RemoteDashboardModel: ObservableObject {
     func setGlobalButtons(_ settings: GlobalButtonSettings) {
         let normalized = settings.normalized(for: remoteProfile)
         guard normalized != globalButtons else { return }
+        setup.resetEvidence()
         globalButtons = normalized
         onVoiceTriggerChange?()
     }
@@ -426,6 +450,7 @@ final class RemoteDashboardModel: ObservableObject {
     func update(_ value: ButtonMapping, for input: ControllerInput, trigger: ButtonTrigger) {
         if input == .options {
             guard trigger == .single, value.shortcutForVoice != nil else { return }
+            if globalButtons.voice != value { setup.resetEvidence() }
             globalButtons.voice = value
         } else if let index = globalButtons.buttons.firstIndex(where: { $0.input == input }) {
             switch trigger {
