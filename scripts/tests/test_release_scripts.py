@@ -1,10 +1,12 @@
 """Exercise architecture isolation with real Mach-O files and release metadata."""
 import base64
+import os
 import plistlib
 import shutil
 import subprocess
 import sys
 import tempfile
+import textwrap
 import unittest
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -83,6 +85,62 @@ class ArchitectureTests(unittest.TestCase):
 
 
 class DMGPackagingTests(unittest.TestCase):
+    def test_release_signs_dmg_before_notarization_and_supplies_assessment_context(self):
+        workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/release.yml").read_text()
+        step = workflow.split("      - name: Notarize and staple distribution DMG\n", 1)[1]
+        commands = textwrap.dedent(step.split("        run: |\n", 1)[1].split("\n      - name:", 1)[0])
+        with tempfile.TemporaryDirectory() as scratch:
+            root = Path(scratch)
+            binaries = root / "bin"
+            binaries.mkdir()
+            # Exercise the actual workflow shell without Apple credentials or
+            # changes to the host's Gatekeeper policy. Model the two DMG gates:
+            # a signed image before submission, and context for open assessment.
+            tool = binaries / "release-tool"
+            tool.write_text(f"#!{sys.executable}\n" + textwrap.dedent('''\
+                import json, os, sys
+                from pathlib import Path
+                name, args = Path(sys.argv[0]).name, sys.argv[1:]
+                root = Path(os.environ["RUNNER_TEMP"])
+                signed = root / "dmg-signed"
+                if name == "codesign":
+                    if "--sign" in args:
+                        assert args[args.index("--sign") + 1] == os.environ["RC_HARNESS_SIGNING_IDENTITY"]
+                        assert "--timestamp" in args
+                        signed.touch()
+                    else:
+                        assert "--verify" in args and signed.exists()
+                elif name == "xcrun":
+                    assert signed.exists(), "DMG must be signed before notarization"
+                    if args[:2] == ["notarytool", "submit"]:
+                        print(json.dumps({"status": "Accepted"}))
+                    else:
+                        assert args[:2] in (["stapler", "staple"], ["stapler", "validate"])
+                elif name == "jq":
+                    print(json.load(open(args[-1]))["status"])
+                elif name == "spctl":
+                    if "--context" not in args or args[args.index("--context") + 1] != "context:primary-signature":
+                        sys.exit("source=Insufficient Context")
+                    assert signed.exists()
+                    (root / "dmg-assessed").touch()
+                else:
+                    assert name == "hdiutil" and args[0] == "verify"
+                '''))
+            tool.chmod(0o755)
+            for name in ("codesign", "xcrun", "jq", "spctl", "hdiutil"):
+                (binaries / name).symlink_to(tool.name)
+            for extension in ("dmg", "zip"):
+                (root / f"RcHarness-v1.2.3-macos-arm64.{extension}").write_bytes(b"release fixture")
+            result = subprocess.run(["/bin/bash", "-e", "-o", "pipefail", "-c", commands],
+                env={**os.environ, "PATH": str(binaries) + os.pathsep + os.defpath,
+                     "RUNNER_TEMP": str(root), "DIST_DIR": str(root), "RELEASE_TAG": "v1.2.3",
+                     "RC_HARNESS_ARCH": "arm64", "KEYCHAIN_PATH": str(root / "release.keychain-db"),
+                     "RC_HARNESS_SIGNING_IDENTITY": "test-distribution-identity"},
+                capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertTrue((root / "dmg-assessed").exists())
+            self.assertTrue((root / "SHA256SUMS-arm64").exists())
+
     def test_package_script_keeps_application_bundle(self):
         with tempfile.TemporaryDirectory() as scratch:
             root = Path(scratch)

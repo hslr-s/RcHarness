@@ -36,7 +36,7 @@ gh secret set SPARKLE_PRIVATE_KEY --repo tokenzz-vip/RcHarness < "$keyfile"
 
 ## 每次发布
 
-发布 workflow 的矩阵分别在 ARM 与 Intel runner 上测试、构建、签名和公证，创建正式 Release 前要求所有签名 secret 就绪。每个架构完成应用公证和 staple 后生成最终 DMG 与备用 ZIP，再单独公证、staple DMG，最后运行 `scripts/generate_update_feed.sh`。脚本从最终 DMG 读取构建号、展示版本和最低系统版本，生成签名更新源，并校验目标架构、包内更新源、下载地址、DMG 长度、版本及签名；任一步失败不会发布 Release。两个构建都成功后，发布任务合并并验证 SHA256SUMS，将两个 DMG、两个备用 ZIP、两个 appcast 和 SHA256SUMS 作为同一 Release 的附件一起发布。
+发布 workflow 的矩阵分别在 ARM 与 Intel runner 上测试、构建、签名和公证，创建正式 Release 前要求所有签名 secret 就绪。每个架构完成应用公证和 staple 后生成最终 DMG 与备用 ZIP，再使用相同的 Developer ID Application 身份签名 DMG、校验签名、单独公证和 staple，并通过 `spctl --assess --type open --context context:primary-signature` 检查 DMG，最后运行 `scripts/generate_update_feed.sh`。脚本从最终 DMG 读取构建号、展示版本和最低系统版本，生成签名更新源，并校验目标架构、包内更新源、下载地址、DMG 长度、版本及签名；任一步失败不会发布 Release。两个构建都成功后，发布任务合并并验证 SHA256SUMS，将两个 DMG、两个备用 ZIP、两个 appcast 和 SHA256SUMS 作为同一 Release 的附件一起发布。
 
 `CFBundleVersion` 使用现有 workflow 的 `github.run_number`，必须保持递增，避免重建 workflow 后重置。展示版本遵循 `vMAJOR.MINOR.PATCH` 标签。每次正式发布都必须同时附带两个架构的 appcast，否则对应的 latest 更新入口会失效。每个架构提供独立全量更新，不生成增量包。
 

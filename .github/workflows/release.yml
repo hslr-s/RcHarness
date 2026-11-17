@@ -182,8 +182,12 @@ jobs:
             "RcHarness $RELEASE_TAG"
 
       - name: Notarize and staple distribution DMG
+        env:
+          RC_HARNESS_SIGNING_IDENTITY: ${{ steps.signing.outputs.identity }}
         run: |
           dmg="$DIST_DIR/RcHarness-$RELEASE_TAG-macos-$RC_HARNESS_ARCH.dmg"
+          codesign --force --timestamp --sign "$RC_HARNESS_SIGNING_IDENTITY" "$dmg"
+          codesign --verify --strict --verbose=4 "$dmg"
           status=0
           xcrun notarytool submit "$dmg" \
             --keychain-profile rcharness-release --keychain "$KEYCHAIN_PATH" \
@@ -196,7 +200,7 @@ jobs:
           xcrun stapler staple "$dmg"
           xcrun stapler validate "$dmg"
           hdiutil verify "$dmg"
-          spctl --assess --type open --verbose=4 "$dmg"
+          spctl --assess --type open --context context:primary-signature --verbose=4 "$dmg"
           cd "$DIST_DIR"
           shasum -a 256 \
             "RcHarness-$RELEASE_TAG-macos-$RC_HARNESS_ARCH.zip" \
