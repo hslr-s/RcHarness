@@ -318,27 +318,36 @@ struct MappingFooter: View {
     }
 }
 
+@MainActor
 struct MappingEditorSheet: View {
     @ObservedObject var model: RemoteDashboardModel
     @Binding var actionFilter: ActionFilter
 
+    @State private var draft: MappingEditorDraft
+
+    init(model: RemoteDashboardModel, actionFilter: Binding<ActionFilter>) {
+        self.model = model
+        _actionFilter = actionFilter
+        _draft = State(initialValue: MappingEditorDraft(model: model))
+    }
+
     private var editedMapping: Binding<ButtonMapping> {
-        Binding(get: { model.effectiveMapping[model.selectedInput, model.selectedTrigger] },
-                set: { model.update($0, for: model.selectedInput, trigger: model.selectedTrigger) })
+        Binding(get: { draft.mapping[draft.input, draft.trigger] },
+                set: { draft.mapping[draft.input, draft.trigger] = $0 })
     }
 
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: SettingsStyle.Spacing.controls) {
-                Image(systemName: model.selectedInput.symbol)
+                Image(systemName: draft.input.symbol)
                     .font(.system(size: 22)).foregroundStyle(Color.accentColor)
                     .frame(width: 44, height: 44)
                     .background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: SettingsStyle.controlRadius))
                 VStack(alignment: .leading, spacing: 5) {
-                    Text("\(model.selectedInput.label) · \(model.selectedInput == .options ? "语音模式" : model.selectedTrigger.title)")
+                    Text("\(draft.input.label) · \(draft.input == .options ? "语音模式" : draft.trigger.title)")
                         .font(SettingsStyle.Typography.dialogTitle)
-                    Text(model.selectedInput == .options ? "固定语音触发 · 对当前遥控器的所有方案和 Harness 生效" :
-                         model.isGlobalInput(model.selectedInput) ? "全局按键 · 对当前遥控器的所有方案和 Harness 生效" : "按键方案：\(model.activeMappingName)")
+                    Text(draft.input == .options ? "固定语音触发 · 对当前遥控器的所有方案和 Harness 生效" :
+                         draft.isGlobal ? "全局按键 · 对当前遥控器的所有方案和 Harness 生效" : "按键方案：\(draft.mappingName)")
                         .font(SettingsStyle.Typography.body).foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 0)
@@ -347,11 +356,11 @@ struct MappingEditorSheet: View {
             Divider()
             ScrollView {
                 VStack(alignment: .leading, spacing: SettingsStyle.Spacing.groups) {
-                    Text(model.selectedInput == .options ? "两种模式分别绑定快捷键，请与语音工具的设置保持一致。" : "选择这个按键要执行的操作")
+                    Text(draft.input == .options ? "两种模式分别绑定快捷键，请与语音工具的设置保持一致。" : "选择这个按键要执行的操作")
                         .font(.callout).foregroundStyle(.secondary)
-                    if model.selectedInput == .options {
-                        voiceModeCard(.hold, title: "长按模式", detail: "按住说话，松手结束。尾音排空后释放快捷键。", shortcut: $model.voiceHoldShortcut)
-                        voiceModeCard(.tap, title: "点按模式", detail: "按一次开始说话，再按语音键结束，也可按其他遥控器按键结束。", shortcut: $model.voiceTapShortcut)
+                    if draft.input == .options {
+                        voiceModeCard(.hold, title: "长按模式", detail: "按住说话，松手结束。尾音排空后释放快捷键。", shortcut: $draft.voiceHoldShortcut)
+                        voiceModeCard(.tap, title: "点按模式", detail: "按一次开始说话，再按语音键结束，也可按其他遥控器按键结束。", shortcut: $draft.voiceTapShortcut)
                         if !model.remoteProfile.supportsVoiceTap {
                             Text("\(model.remoteProfile.shortName) 松手后会停止收音，仅可启用长按模式。点按快捷键仍可配置。")
                                 .font(.caption).foregroundStyle(.secondary)
@@ -360,10 +369,10 @@ struct MappingEditorSheet: View {
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                     } else {
-                        if model.selectedInput.supportedTriggers.count > 1 {
+                        if draft.input.supportedTriggers.count > 1 {
                             MappingEditorField("触发方式") {
-                                Picker("触发方式", selection: $model.selectedTrigger) {
-                                    ForEach(model.selectedInput.supportedTriggers) { trigger in Text(trigger.title).tag(trigger) }
+                                Picker("触发方式", selection: $draft.trigger) {
+                                    ForEach(draft.input.supportedTriggers) { trigger in Text(trigger.title).tag(trigger) }
                                 }
                                 .pickerStyle(.segmented)
                             }
@@ -375,7 +384,7 @@ struct MappingEditorSheet: View {
                             .pickerStyle(.segmented)
                         }
                         ActionMappingEditor(value: editedMapping, model: model, filter: actionFilter)
-                            .id(model.selectedTrigger)
+                            .id(draft.trigger)
                     }
                 }
                 .padding(SettingsStyle.pagePadding)
@@ -383,14 +392,19 @@ struct MappingEditorSheet: View {
             }
             Divider()
             HStack {
-                Text("更改会自动保存").font(.caption).foregroundStyle(.secondary)
                 Spacer()
-                Button("完成") { model.editorVisible = false }
+                Button("取消", role: .cancel) { model.editorVisible = false }
+                    .keyboardShortcut(.cancelAction)
+                    .accessibilityIdentifier("mapping-editor-cancel")
+                Button("保存") {
+                    if model.saveMappingEditor(draft) { model.editorVisible = false }
+                }
+                    .accessibilityIdentifier("mapping-editor-save")
                     .buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
             }
             .padding(.horizontal, SettingsStyle.pagePadding).padding(.vertical, 16)
         }
-        .frame(width: 560, height: model.selectedInput == .options ? 560 : editedMapping.wrappedValue.action == .macro ? 460 : 420)
+        .frame(width: 560, height: draft.input == .options ? 560 : editedMapping.wrappedValue.action == .macro ? 460 : 420)
         .background(Color(nsColor: .controlBackgroundColor))
         .onExitCommand { model.editorVisible = false }
     }
@@ -399,8 +413,8 @@ struct MappingEditorSheet: View {
         let unavailable = mode == .tap && !model.remoteProfile.supportsVoiceTap
         return VStack(alignment: .leading, spacing: SettingsStyle.Spacing.inline) {
             HStack {
-                Button { model.voiceMode = mode } label: {
-                    Label(title, systemImage: model.voiceMode == mode ? "largecircle.fill.circle" : "circle")
+                Button { draft.voiceMode = mode } label: {
+                    Label(title, systemImage: draft.voiceMode == mode ? "largecircle.fill.circle" : "circle")
                         .font(.system(size: 14, weight: .semibold))
                 }
                 .buttonStyle(.plain)

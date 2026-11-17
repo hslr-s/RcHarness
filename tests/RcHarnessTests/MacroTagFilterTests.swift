@@ -62,15 +62,14 @@ final class MacroTagFilterTests: XCTestCase {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         let model = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
-        model.selectedInput = .buttonY
-        model.selectedTrigger = .long
+        model.openButtonEditor(.buttonY, trigger: .long)
         let original = try XCTUnwrap(model.macros.first)
         model.update(ButtonMapping(action: .macro, referenceID: original.id.uuidString), for: .buttonY, trigger: .long)
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 460),
                               styleMask: [.titled, .closable], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         window.appearance = NSAppearance(named: ProcessInfo.processInfo.environment["RC_HARNESS_UI_DARK"] == "1" ? .darkAqua : .aqua)
-        let host = NSHostingView(rootView: MappingEditorSheet(model: model, actionFilter: .constant(.all)))
+        let host = NSHostingView(rootView: MappingEditorSheet(model: model, actionFilter: .constant(.all)).id(UUID()))
         window.contentView = host
         window.center()
         window.makeKeyAndOrderFront(nil)
@@ -109,14 +108,23 @@ final class MacroTagFilterTests: XCTestCase {
         try click(NSPoint(x: 90, y: 83), in: content, window: popup)
         await flushUI()
         XCTAssertFalse(popup.isVisible)
-        XCTAssertEqual(model.effectiveMapping[.buttonY, .long].referenceID, expected.id.uuidString)
+        XCTAssertEqual(model.effectiveMapping[.buttonY, .long].referenceID, original.id.uuidString,
+                       "Selecting a macro only changes the draft")
         XCTAssertEqual(macroButton.accessibilityValue() as? String, expected.name)
         XCTAssertEqual(tagButton.accessibilityValue() as? String, "Codex、Cursor")
 
+        try clickEditorButton("mapping-editor-cancel", in: host)
+        await flushUI()
+        XCTAssertFalse(model.editorVisible)
+        XCTAssertEqual(model.effectiveMapping[.buttonY, .long].referenceID, original.id.uuidString)
         let last = try XCTUnwrap(model.macros.last { !$0.tagIDs.isDisjoint(with: ["codex", "cursor"]) })
         model.update(ButtonMapping(action: .macro, referenceID: last.id.uuidString), for: .buttonY, trigger: .long)
+        host.rootView = MappingEditorSheet(model: model, actionFilter: .constant(.all)).id(UUID())
         await flushUI()
-        macroButton.performClick(nil)
+        let lastMacroButton = try XCTUnwrap(testViewHierarchy(host).compactMap { $0 as? NSButton }.first {
+            $0.identifier?.rawValue == "macro-reference-picker"
+        })
+        lastMacroButton.performClick(nil)
         await flushUI()
         let reopened = try XCTUnwrap(NSApp.windows.first { $0.isVisible && !existing.contains($0.windowNumber) })
         let reopenedContent = try XCTUnwrap(reopened.contentView)
@@ -138,6 +146,7 @@ final class MacroTagFilterTests: XCTestCase {
         let original = ButtonMapping(action: .openApplication, applicationPath: "/Applications/Dictionary.app")
         var heights: [CGFloat] = []
         for filter in [ActionFilter.all, .system, .custom] {
+            model.openButtonEditor(.buttonY, trigger: .long)
             model.update(original, for: .buttonY, trigger: .long)
             let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 420),
                                   styleMask: [.titled, .closable], backing: .buffered, defer: false)
@@ -182,18 +191,32 @@ final class MacroTagFilterTests: XCTestCase {
                       in: XCTUnwrap(reopened.contentView), window: reopened)
             await flushUI()
             XCTAssertFalse(reopened.isVisible)
-            XCTAssertEqual(model.effectiveMapping[.buttonY, .long].action, filter == .system ? .volumeUp : filter == .custom ? .macro : .recordedShortcut)
-            XCTAssertNil(model.effectiveMapping[.buttonY, .long].applicationPath)
+            XCTAssertEqual(model.effectiveMapping[.buttonY, .long], original,
+                           "Changing the action must not update the live configuration before Save")
             button.performClick(nil)
             await flushUI()
             let reset = try XCTUnwrap(NSApp.windows.first { $0.isVisible && !existing.contains($0.windowNumber) })
             try click(NSPoint(x: 90, y: 18), in: XCTUnwrap(reset.contentView), window: reset)
             await flushUI()
             XCTAssertFalse(reset.isVisible)
+            XCTAssertEqual(model.effectiveMapping[.buttonY, .long], original)
+            try clickEditorButton("mapping-editor-save", in: host)
+            await flushUI()
+            XCTAssertFalse(model.editorVisible)
             XCTAssertEqual(model.effectiveMapping[.buttonY, .long].action, .disabled,
-                           "Disabled must be the first option in every category")
+                           "Save commits the draft; Disabled is the first option in every category")
+            XCTAssertNil(model.effectiveMapping[.buttonY, .long].applicationPath)
+            XCTAssertEqual(RemoteDashboardModel(mapping: .defaults, defaults: defaults)
+                .effectiveMapping[.buttonY, .long].action, .disabled)
         }
         XCTAssertGreaterThan(heights[0], try XCTUnwrap(heights.last), "Long lists scroll while short lists use their natural height")
+    }
+
+    private func clickEditorButton(_ identifier: String, in host: NSView) throws {
+        let window = try XCTUnwrap(host.window)
+        let trailingInset: CGFloat = identifier == "mapping-editor-save" ? 46 : 112
+        try click(NSPoint(x: host.bounds.width - trailingInset, y: host.bounds.height - 26),
+                  in: host, window: window)
     }
 
     private func capturePopup(_ popup: NSWindow, filename: String) throws {

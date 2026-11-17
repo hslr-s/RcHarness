@@ -468,6 +468,33 @@ final class RemoteDashboardModel: ObservableObject {
         selectedTrigger = trigger
         editorVisible = true
     }
+    func saveMappingEditor(_ draft: MappingEditorDraft) -> Bool {
+        guard draft.remoteID == remoteProfile.id,
+              draft.isGlobal == isGlobalInput(draft.input),
+              draft.input == .options || draft.isGlobal || draft.profileID == selectedProfileID else {
+            postNotice("当前遥控器或按键方案已切换，请取消后重新编辑。", level: .warning)
+            return false
+        }
+        settingsWrites.batch {
+            if draft.input == .options {
+                var settings = globalButtons
+                if draft.voiceMode != draft.originalVoiceMode { settings.voiceMode = draft.voiceMode }
+                if draft.voiceHoldShortcut != draft.originalVoiceHoldShortcut {
+                    settings.voice = ButtonMapping(action: .recordedShortcut, shortcut: draft.voiceHoldShortcut)
+                }
+                if draft.voiceTapShortcut != draft.originalVoiceTapShortcut {
+                    settings.voiceTapShortcut = draft.voiceTapShortcut
+                }
+                setGlobalButtons(settings)
+            } else {
+                for trigger in draft.input.supportedTriggers
+                    where draft.mapping[draft.input, trigger] != draft.originalMapping[draft.input, trigger] {
+                    update(draft.mapping[draft.input, trigger], for: draft.input, trigger: trigger)
+                }
+            }
+        }
+        return true
+    }
     func persistMapping() {
         guard let index = profiles.firstIndex(where: { $0.id == selectedProfileID }) else { return }
         profiles[index].mapping = mapping
