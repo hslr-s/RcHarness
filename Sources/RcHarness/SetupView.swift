@@ -71,62 +71,75 @@ struct SetupView: View {
     private var stepHeader: some View {
         HStack(alignment: .top, spacing: 0) {
             ForEach(SetupStep.allCases) { step in
-                let current = step == setup.step
-                let previous = step.index < setup.step.index
-                Button { setup.goBack(to: step) } label: {
-                    VStack(spacing: 10) {
-                        ZStack {
-                            Circle()
-                                .fill(current ? Color.accentColor : previous ? Color.accentColor.opacity(0.1) : Color(nsColor: .controlBackgroundColor))
-                            Circle()
-                                .strokeBorder(current || previous ? Color.accentColor : Color.primary.opacity(0.18), lineWidth: 1)
-                            if previous {
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 12, weight: .semibold))
-                            } else {
-                                Text("\(step.index + 1)")
-                                    .font(.system(size: 12, weight: .semibold)).monospacedDigit()
-                            }
-                        }
-                        .foregroundStyle(current ? Color.white : previous ? Color.accentColor : Color.secondary)
-                        .frame(width: 28, height: 28)
-                        .accessibilityHidden(true)
-                        Text(step.title)
-                            .font(.system(size: 12, weight: current ? .semibold : .regular))
-                            .foregroundStyle(current ? Color.primary : Color.secondary)
-                            .lineLimit(1)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(SetupStepButtonStyle())
-                .disabled(step.index > setup.step.index)
-                .accessibilityLabel("第 \(step.index + 1) 步，\(step.title)")
-                .accessibilityValue(current ? "当前步骤" : previous ? "已完成，可返回" : "待完成")
-                .accessibilityAddTraits(current ? .isSelected : [])
+                stepButton(for: step)
             }
         }
-        .background(alignment: .top) {
-            GeometryReader { geometry in
-                let column = geometry.size.width / CGFloat(SetupStep.allCases.count)
-                ForEach(0..<(SetupStep.allCases.count - 1), id: \.self) { index in
-                    Path { path in
-                        path.move(to: CGPoint(x: column * (CGFloat(index) + 0.5) + 22, y: 14))
-                        path.addLine(to: CGPoint(x: column * (CGFloat(index) + 1.5) - 22, y: 14))
-                    }
-                    .stroke(index < setup.step.index ? Color.accentColor : Color.primary.opacity(0.12),
-                            style: StrokeStyle(lineWidth: 2, lineCap: .round))
-                }
-            }
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
-        }
+        .background(alignment: .top) { stepConnections }
         .frame(maxWidth: 900)
         .padding(.horizontal, 36).padding(.top, 38).padding(.bottom, 20)
         .frame(maxWidth: .infinity)
         .background(Color(nsColor: .windowBackgroundColor))
         .accessibilityElement(children: .contain)
         .accessibilityLabel("设置向导进度")
+    }
+
+    // Keep these expressions separate so Xcode 16's SwiftUI type checker can
+    // compile the progress header as well as newer toolchains do.
+    private func stepButton(for step: SetupStep) -> some View {
+        let current = step == setup.step
+        let previous = step.index < setup.step.index
+        return Button { setup.goBack(to: step) } label: {
+            VStack(spacing: 10) {
+                stepIndicator(for: step, current: current, previous: previous)
+                Text(step.title)
+                    .font(.system(size: 12, weight: current ? .semibold : .regular))
+                    .foregroundStyle(current ? Color.primary : Color.secondary)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(SetupStepButtonStyle())
+        .disabled(step.index > setup.step.index)
+        .accessibilityLabel("第 \(step.index + 1) 步，\(step.title)")
+        .accessibilityValue(current ? "当前步骤" : previous ? "已完成，可返回" : "待完成")
+        .accessibilityAddTraits(current ? .isSelected : [])
+    }
+
+    private func stepIndicator(for step: SetupStep, current: Bool, previous: Bool) -> some View {
+        let fill: Color = current ? .accentColor : previous ? .accentColor.opacity(0.1) : Color(nsColor: .controlBackgroundColor)
+        let border: Color = current || previous ? .accentColor : .primary.opacity(0.18)
+        let foreground: Color = current ? .white : previous ? .accentColor : .secondary
+        return ZStack {
+            Circle().fill(fill)
+            Circle().strokeBorder(border, lineWidth: 1)
+            if previous {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 12, weight: .semibold))
+            } else {
+                Text("\(step.index + 1)")
+                    .font(.system(size: 12, weight: .semibold)).monospacedDigit()
+            }
+        }
+        .foregroundStyle(foreground)
+        .frame(width: 28, height: 28)
+        .accessibilityHidden(true)
+    }
+
+    private var stepConnections: some View {
+        GeometryReader { geometry in
+            let column = geometry.size.width / CGFloat(SetupStep.allCases.count)
+            ForEach(0..<(SetupStep.allCases.count - 1), id: \.self) { index in
+                Path { path in
+                    path.move(to: CGPoint(x: column * (CGFloat(index) + 0.5) + 22, y: 14))
+                    path.addLine(to: CGPoint(x: column * (CGFloat(index) + 1.5) - 22, y: 14))
+                }
+                .stroke(index < setup.step.index ? Color.accentColor : Color.primary.opacity(0.12),
+                        style: StrokeStyle(lineWidth: 2, lineCap: .round))
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 
     private var footer: some View {
