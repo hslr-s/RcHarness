@@ -336,7 +336,7 @@ struct SetupView: View {
                 Text("3. 设置相同的快捷键和触发方式。")
                 Text("使用 Fn / 地球键时，检查系统键盘设置中该按键的用途，避免同时触发系统动作。")
                     .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                Button("打开键盘设置") { openSystemSettings("x-apple.systempreferences:com.apple.Keyboard-Settings.extension") }
+                VoiceInputToolSettingsButtons()
                 Divider()
                 Toggle("我已在目标工具中设置相同的麦克风和快捷键", isOn: $setup.toolConfigured)
                     .toggleStyle(.checkbox)
@@ -392,7 +392,7 @@ struct SetupView: View {
         if setup.step.index >= SetupStep.remote.index, !readiness.remote { return "等待当前遥控器的按键和语音连接；可返回连接步骤重新检查。" }
         if setup.step == .remote { return nil }
         if !readiness.audio { return "请检查麦克风组件和接收设备；如有错误，可刷新设备或重新安装组件。" }
-        if setup.step == .voice { return "配置目标语音工具后，勾选确认以继续。" }
+        if setup.step == .voice { return nil }
         if !readiness.outputHealthy { return "音频输出失败，请检查接收设备后发送测试音重试。" }
         return "请完成一次语音试用，并确认目标应用已正确收到文字。"
     }
