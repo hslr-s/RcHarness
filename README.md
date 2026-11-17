@@ -84,7 +84,15 @@ Chromecast 遥控器首次建立配置时默认使用点按语音模式，也可
 
 虚拟麦克风组件随应用提供，首次安装需要管理员授权。RcHarness 负责传递音频，语音识别由目标语音应用处理。
 
-默认全局按键有三项，依次为电源键、主页键、小米 TV 键／Chromecast 输入源键；这三项固定保留，第一项必选，后两项可留空。电源键默认**单击**打开运行中的 Harness 列表，**双击**未设置，**长按**切换至原生模式；主页键默认单击显示桌面、双击 Escape、长按未设置；第三项默认单击切换应用、双击查看所有窗口、长按显示桌面。可在“设置 → 全局按键”增加其他全局按键，也可从主面板或菜单栏恢复当前方案映射。
+默认全局按键如下，对当前遥控器的所有方案和 Harness 生效：
+
+| 按键 | 单击 | 双击 | 长按 |
+|---|---|---|---|
+| 电源键 | 打开运行中的 Harness 列表 | 未设置 | 切换至原生模式 |
+| 主页键 | 显示桌面 | Escape | 未设置 |
+| 小米 TV 键／Chromecast 输入源键 | 切换应用 | 查看所有窗口 | 显示桌面 |
+
+这三项固定保留，第一项必选，后两项可留空。可在“设置 → 全局按键”增加其他全局按键，也可从主面板或菜单栏恢复当前方案映射。
 
 ## 常见问题
 
@@ -149,3 +157,13 @@ RC_HARNESS_ARCH=x86_64 scripts/build_app.sh .build/apps/x86_64/RcHarness.app
 ## 许可证
 
 Copyright (c) 2026 tokenzz-vip。以 [GNU 通用公共许可证 v3.0（GPL-3.0-only）](LICENSE) 发布。
+
+## Star History
+
+<a href="https://www.star-history.com/#tokenzz-vip/RcHarness&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=tokenzz-vip/RcHarness&amp;type=Date&amp;theme=dark">
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=tokenzz-vip/RcHarness&amp;type=Date">
+    <img src="https://api.star-history.com/svg?repos=tokenzz-vip/RcHarness&amp;type=Date" alt="RcHarness GitHub Star 数量随时间变化的趋势图" width="800">
+  </picture>
+</a>

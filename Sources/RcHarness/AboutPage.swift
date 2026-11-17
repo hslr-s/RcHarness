@@ -39,7 +39,7 @@ struct AboutPage: View {
                                 .font(.system(size: 14, weight: .semibold))
                                 .monospacedDigit().help("构建 \(AppInfo.build)")
                         }.font(SettingsStyle.Typography.body)
-                        Text("Intel 或 Apple Silicon · macOS 14 及以上").font(SettingsStyle.Typography.caption).foregroundStyle(.secondary)
+                        Text("macOS 14 及以上").font(SettingsStyle.Typography.caption).foregroundStyle(.secondary)
                         AppUpdateSettingsView(model: model.updates)
                     }.frame(width: 340, alignment: .leading)
                 }.fixedSize(horizontal: false, vertical: true)
