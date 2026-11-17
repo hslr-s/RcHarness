@@ -4,7 +4,7 @@
 
 # RcHarness
 
-RcHarness 是一款原生 macOS 菜单栏应用，通过蓝牙遥控器操作 Codex、Claude、Cursor、DeepSeek、WorkBuddy、OpenCode 等 AI 对话与编程应用。支持自定义按键、应用切换、常用语输入和语音输入，无需额外转接硬件。
+RcHarness 是一款原生 macOS 菜单栏应用，通过蓝牙遥控器操作 ChatGPT、Claude、Cursor、DeepSeek、WorkBuddy、OpenCode 等 AI 对话与编程应用。支持自定义按键、应用切换、常用语输入和语音输入，无需额外转接硬件。
 
 **按键方案随当前 Harness 应用自动切换**，同一实体按键可在不同软件中执行不同动作。
 
@@ -12,12 +12,12 @@ RcHarness 是一款原生 macOS 菜单栏应用，通过蓝牙遥控器操作 Co
 
 [下载应用](https://github.com/tokenzz-vip/RcHarness/releases) · [快速开始](#快速开始) · [反馈问题](https://github.com/tokenzz-vip/RcHarness/issues)
 
-![按键映射界面：以小米遥控器和 Codex 方案展示单击、双击、长按动作及实体按键对应关系](docs/images/key-mapping.png)
+![按键映射界面：以小米遥控器和 ChatGPT 方案展示单击、双击、长按动作及实体按键对应关系](docs/images/key-mapping.png)
 
 ## 核心功能
 
 - **自定义按键**：为单击、双击和长按设置快捷键、鼠标操作、系统动作或常用语。
-- **应用与方案**：管理 Codex、Claude、Cursor、DeepSeek、WorkBuddy、OpenCode 及自定义应用，为不同 Harness 绑定各自的按键方案，切换应用时自动加载对应方案。
+- **应用与方案**：管理 ChatGPT、Claude、Cursor、DeepSeek、WorkBuddy、OpenCode 及自定义应用，为不同 Harness 绑定各自的按键方案，切换应用时自动加载对应方案。
 - **快速切换**：通过遥控器唤出运行中的 Harness 列表，选择并切换应用。
 - **全局按键**：为当前遥控器配置跨 Harness、跨方案生效的电源键、主页键、TV／输入源键及其他全局按键；语音键独立配置。
 - **语音输入**：通过虚拟麦克风将遥控器音频传递给语音应用；小米支持按住说话，Chromecast G9N9N 还支持点按模式。
@@ -34,11 +34,11 @@ RcHarness 是一款原生 macOS 菜单栏应用，通过蓝牙遥控器操作 Co
 
 ### Harness 与键位方案
 
-“Harness”页显示内置和手动添加的应用，可查看运行状态、启用或停用 Harness，并绑定当前遥控器的键位方案。当前内置 Codex、Claude、Cursor、DeepSeek、WorkBuddy、OpenCode；自定义应用可继续添加。
+“Harness”页显示内置和手动添加的应用，可查看运行状态、启用或停用 Harness，并绑定当前遥控器的键位方案。当前内置 ChatGPT、Claude、Cursor、DeepSeek、WorkBuddy、OpenCode；自定义应用可继续添加。
 
 “键位方案”页按遥控器型号列出方案。一个方案可以绑定多个 Harness，修改后同时对所有绑定应用生效；同一 Harness 在不同遥控器上可以使用不同方案。全局按键与语音触发设置独立于方案，在当前遥控器的所有方案和 Harness 间共享。
 
-![Harness 界面：为 Codex、Claude、Cursor、DeepSeek、WorkBuddy、OpenCode 等应用绑定按键方案并管理启用状态](docs/images/harness.png)
+![Harness 界面：为 ChatGPT、Claude、Cursor、DeepSeek、WorkBuddy、OpenCode 等应用绑定按键方案并管理启用状态](docs/images/harness.png)
 
 ### 快速切换 Harness
 
@@ -133,7 +133,7 @@ RC_HARNESS_ARCH=x86_64 scripts/build_app.sh .build/apps/x86_64/RcHarness.app
 ```bash
 .build/RcHarness.app/Contents/MacOS/RcHarness --render-settings /tmp/rcharness-pages
 .build/RcHarness.app/Contents/MacOS/RcHarness --render-settings /tmp/rcharness-pages-dark --dark --narrow
-# 按当前型号导出指定 Harness 的映射（默认 codex）
+# 按当前型号导出指定 Harness 的映射（默认 chatgpt）
 .build/RcHarness.app/Contents/MacOS/RcHarness --render-settings /tmp/rcharness-claude --remote-profile xiaomi-rc001 --harness claude
 ```
 

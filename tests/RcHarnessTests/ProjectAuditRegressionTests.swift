@@ -86,22 +86,22 @@ final class ProjectAuditRegressionTests: XCTestCase {
         var changed = RemoteMapping.defaults
         changed[.buttonA] = ButtonMapping(action: .paste)
         let profile = SavedKeyProfile(name: "自定义旧方案", mapping: changed)
-        var retired = HarnessConfiguration(id: "antigravity", name: "Antigravity")
-        retired.isEnabled = false
+        var legacy = HarnessConfiguration(id: "codex", name: "Codex")
+        legacy.isEnabled = false
         var configurations: [String: RemoteKeyConfiguration] = [:]
         for (index, remote) in RemoteProfiles.all.enumerated() {
             configurations[remote.id] = RemoteKeyConfiguration(profiles: [profile],
-                harnessProfileIDs: index == 0 ? [:] : ["antigravity": profile.id],
-                initializedHarnessIDs: ["antigravity"], globalButtons: GlobalButtonSettings(),
-                selectedProfileID: profile.id, selectedHarnessID: index == 0 ? nil : "antigravity")
+                harnessProfileIDs: index == 0 ? [:] : ["codex": profile.id],
+                initializedHarnessIDs: ["codex"], globalButtons: GlobalButtonSettings(),
+                selectedProfileID: profile.id, selectedHarnessID: index == 0 ? nil : "codex")
         }
         let backup = SettingsBackup(version: 4, mapping: .defaults, profiles: [], macros: [], phrases: [],
-            harnesses: [retired], remoteKeyConfigurations: configurations)
+            harnesses: [legacy], remoteKeyConfigurations: configurations)
         let model = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
         try model.applyConfiguration(backup)
         for (index, remote) in RemoteProfiles.all.enumerated() {
             model.selectRemoteProfile(remote.id)
-            let harness = try XCTUnwrap(model.harnesses.first { $0.id == "deepseek" })
+            let harness = try XCTUnwrap(model.harnesses.first { $0.id == "chatgpt" })
             XCTAssertTrue(harness.didInitializeDefaultProfile)
             XCTAssertFalse(harness.isEnabled)
             XCTAssertEqual(harness.profileID, index == 0 ? nil : profile.id)
@@ -110,29 +110,29 @@ final class ProjectAuditRegressionTests: XCTestCase {
         let restarted = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
         for (index, remote) in RemoteProfiles.all.enumerated() {
             restarted.selectRemoteProfile(remote.id)
-            XCTAssertEqual(restarted.harnesses.first { $0.id == "deepseek" }?.profileID, index == 0 ? nil : profile.id)
+            XCTAssertEqual(restarted.harnesses.first { $0.id == "chatgpt" }?.profileID, index == 0 ? nil : profile.id)
         }
     }
 
     func testV4MigrationRetainsEnabledHarnessSelectionAtStartup() throws {
         let profile = SavedKeyProfile(name: "旧方案", mapping: .defaults)
-        let configuration = RemoteKeyConfiguration(profiles: [profile], harnessProfileIDs: ["antigravity": profile.id],
-            initializedHarnessIDs: ["antigravity"], globalButtons: GlobalButtonSettings(),
-            selectedProfileID: profile.id, selectedHarnessID: "antigravity")
-        SettingsStorage.save([HarnessConfiguration(id: "antigravity", name: "Antigravity")], SettingsKeys.Stored.harnesses, defaults: defaults)
+        let configuration = RemoteKeyConfiguration(profiles: [profile], harnessProfileIDs: ["codex": profile.id],
+            initializedHarnessIDs: ["codex"], globalButtons: GlobalButtonSettings(),
+            selectedProfileID: profile.id, selectedHarnessID: "codex")
+        SettingsStorage.save([HarnessConfiguration(id: "codex", name: "Codex")], SettingsKeys.Stored.harnesses, defaults: defaults)
         SettingsStorage.save([RemoteProfiles.xiaomiRC003.id: configuration], SettingsKeys.Stored.remoteKeyConfigurations, defaults: defaults)
         let model = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
-        XCTAssertEqual(model.selectedHarnessID, "deepseek")
+        XCTAssertEqual(model.selectedHarnessID, "chatgpt")
         XCTAssertEqual(model.selectedProfileID, profile.id)
-        XCTAssertEqual(model.harnesses.first { $0.id == "deepseek" }?.profileID, profile.id)
+        XCTAssertEqual(model.harnesses.first { $0.id == "chatgpt" }?.profileID, profile.id)
     }
 
-    func testExplicitReplacementUnbindingWinsOverRetiredBinding() {
-        let configuration = RemoteKeyConfiguration(profiles: [], harnessProfileIDs: ["antigravity": UUID()],
-            initializedHarnessIDs: ["antigravity", "deepseek"], globalButtons: GlobalButtonSettings(),
+    func testExplicitReplacementUnbindingWinsOverOldNameBinding() {
+        let configuration = RemoteKeyConfiguration(profiles: [], harnessProfileIDs: ["codex": UUID()],
+            initializedHarnessIDs: ["codex", "chatgpt"], globalButtons: GlobalButtonSettings(),
             selectedProfileID: nil, selectedHarnessID: nil).normalized()
         XCTAssertTrue(configuration.harnessProfileIDs.isEmpty)
-        XCTAssertEqual(configuration.initializedHarnessIDs, ["deepseek"])
+        XCTAssertEqual(configuration.initializedHarnessIDs, ["chatgpt"])
     }
 
     func testNameRepairsPreserveIDsMappingsBindingsAndReservedSuffixesAcrossRemotes() throws {
@@ -143,9 +143,9 @@ final class ProjectAuditRegressionTests: XCTestCase {
                         SavedKeyProfile(name: "Work 2", mapping: .defaults),
                         SavedKeyProfile(name: " \n ", mapping: mapping)]
         let configurations = Dictionary(uniqueKeysWithValues: RemoteProfiles.all.map { remote in
-            (remote.id, RemoteKeyConfiguration(profiles: profiles, harnessProfileIDs: ["codex": profiles[1].id],
-                initializedHarnessIDs: ["codex"], globalButtons: GlobalButtonSettings(),
-                selectedProfileID: profiles[1].id, selectedHarnessID: "codex"))
+            (remote.id, RemoteKeyConfiguration(profiles: profiles, harnessProfileIDs: ["chatgpt": profiles[1].id],
+                initializedHarnessIDs: ["chatgpt"], globalButtons: GlobalButtonSettings(),
+                selectedProfileID: profiles[1].id, selectedHarnessID: "chatgpt"))
         })
         let model = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
         try model.applyConfiguration(SettingsBackup(version: 4, mapping: .defaults, profiles: [], macros: [], phrases: [],
@@ -155,7 +155,7 @@ final class ProjectAuditRegressionTests: XCTestCase {
             let configuration = try XCTUnwrap(backup.remoteKeyConfigurations?[remote.id])
             XCTAssertEqual(configuration.profiles.filter { profiles.map(\.id).contains($0.id) }.map(\.name),
                            ["Work", "work 3", "Work 2", "新方案"])
-            XCTAssertEqual(configuration.harnessProfileIDs["codex"], profiles[1].id)
+            XCTAssertEqual(configuration.harnessProfileIDs["chatgpt"], profiles[1].id)
             model.selectRemoteProfile(remote.id)
             for profile in profiles {
                 XCTAssertEqual(model.profiles.first { $0.id == profile.id }?.mapping, profile.mapping)
@@ -185,27 +185,27 @@ final class ProjectAuditRegressionTests: XCTestCase {
     }
 
     func testRepairedBuiltInNamesRetainProtectionAndResetWithoutProtectingCustomSuffixes() throws {
-        let profiles = [SavedKeyProfile(name: "Codex", mapping: .defaults),
-                        SavedKeyProfile(name: " codex ", mapping: .defaults),
-                        SavedKeyProfile(name: "Codex 2", mapping: .defaults)]
+        let profiles = [SavedKeyProfile(name: "ChatGPT", mapping: .defaults),
+                        SavedKeyProfile(name: " chatgpt ", mapping: .defaults),
+                        SavedKeyProfile(name: "ChatGPT 2", mapping: .defaults)]
         var harnesses = HarnessConfiguration.defaults
         for index in harnesses.indices { harnesses[index].didInitializeDefaultProfile = true }
         let model = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
         try model.applyConfiguration(SettingsBackup(version: 3, mapping: .defaults,
             profiles: profiles, macros: [], phrases: [], harnesses: harnesses))
         let repaired = try XCTUnwrap(model.profiles.first { $0.id == profiles[1].id })
-        XCTAssertEqual(repaired.name, "codex 3")
-        XCTAssertEqual(repaired.protectedBuiltInID, "codex")
+        XCTAssertEqual(repaired.name, "chatgpt 3")
+        XCTAssertEqual(repaired.protectedBuiltInID, "chatgpt")
         XCTAssertFalse(model.canDeleteProfile(repaired.id))
         XCTAssertTrue(model.canDeleteProfile(profiles[2].id), "An ordinary custom suffix remains deletable")
         model.activateProfile(repaired.id)
         model.resetMapping()
-        XCTAssertEqual(model.mapping, .codexDefaults(macros: model.macros))
+        XCTAssertEqual(model.mapping, .chatgptDefaults(macros: model.macros))
         let backup = try JSONDecoder().decode(SettingsBackup.self, from: JSONEncoder().encode(model.configurationBackup()))
         try model.applyConfiguration(backup)
         let restarted = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
         XCTAssertFalse(restarted.canDeleteProfile(repaired.id))
-        XCTAssertEqual(restarted.profiles.first { $0.id == repaired.id }?.protectedBuiltInID, "codex")
+        XCTAssertEqual(restarted.profiles.first { $0.id == repaired.id }?.protectedBuiltInID, "chatgpt")
         XCTAssertTrue(restarted.renameProfile(repaired.id, name: repaired.name))
         XCTAssertFalse(restarted.canDeleteProfile(repaired.id))
         XCTAssertTrue(restarted.renameProfile(repaired.id, name: "我的工作方案"))
@@ -216,19 +216,19 @@ final class ProjectAuditRegressionTests: XCTestCase {
         let model = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
         var mappings: [RemoteMapping] = []
         model.onMappingChange = { mappings.append($0) }
-        model.activateHarness("codex")
-        let profileID = try XCTUnwrap(model.harnesses.first { $0.id == "codex" }?.profileID)
+        model.activateHarness("chatgpt")
+        let profileID = try XCTUnwrap(model.harnesses.first { $0.id == "chatgpt" }?.profileID)
         XCTAssertEqual(mappings.count, 1)
         let snapshot = try XCTUnwrap(SettingsStorage.load([String: RemoteKeyConfiguration].self,
             SettingsKeys.Stored.remoteKeyConfigurations, defaults: defaults)?[model.remoteProfile.id])
-        XCTAssertEqual(snapshot.selectedHarnessID, "codex")
+        XCTAssertEqual(snapshot.selectedHarnessID, "chatgpt")
         XCTAssertEqual(snapshot.selectedProfileID, profileID)
-        model.activateHarness("codex")
+        model.activateHarness("chatgpt")
         XCTAssertEqual(mappings.count, 1)
         model.update(ButtonMapping(action: .paste), for: .buttonA, trigger: .single)
         XCTAssertEqual(mappings.last?[.buttonA].action, .paste)
         let restarted = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
-        XCTAssertEqual(restarted.selectedHarnessID, "codex")
+        XCTAssertEqual(restarted.selectedHarnessID, "chatgpt")
         XCTAssertEqual(restarted.selectedProfileID, profileID)
         XCTAssertEqual(restarted.mapping[.buttonA].action, .paste)
     }

@@ -35,7 +35,7 @@ final class HarnessLayoutTests: XCTestCase {
         let baselineSwitches = switchFrames(in: host)
         XCTAssertEqual(baselineSwitches.count, model.harnesses.count)
         let targets: [(identifier: String, harnessID: String?)] = [
-            ("com.openai.codex", "codex"),
+            ("com.openai.codex", "chatgpt"),
             ("com.todesktop.230313mzl4w4u92", "cursor"),
             ("com.deepseek.dsh", "deepseek"),
             ("other.app", nil),

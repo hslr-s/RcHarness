@@ -37,14 +37,14 @@ final class MacroTagFilterTests: XCTestCase {
         let content = try XCTUnwrap(popup.contentView)
 
         // 4 pt inset, 28 pt reset row, 9 pt separator, then uniform 28 pt tag rows.
-        try click(NSPoint(x: 60, y: 83), in: content, window: popup) // Codex
+        try click(NSPoint(x: 60, y: 83), in: content, window: popup) // ChatGPT
         await flushUI()
         XCTAssertTrue(popup.isVisible)
-        XCTAssertEqual(button.accessibilityValue() as? String, "Codex")
+        XCTAssertEqual(button.accessibilityValue() as? String, "ChatGPT")
         try click(NSPoint(x: 60, y: 139), in: content, window: popup) // Cursor
         await flushUI()
         XCTAssertTrue(popup.isVisible)
-        XCTAssertEqual(button.accessibilityValue() as? String, "Codex、Cursor")
+        XCTAssertEqual(button.accessibilityValue() as? String, "ChatGPT、Cursor")
         try snapshot(window: window, popup: popup)
 
         try click(NSPoint(x: 60, y: 83), in: content, window: popup)
@@ -89,7 +89,7 @@ final class MacroTagFilterTests: XCTestCase {
         try click(NSPoint(x: 60, y: 139), in: tagContent, window: tags)
         await flushUI()
         XCTAssertTrue(tags.isVisible)
-        XCTAssertEqual(tagButton.accessibilityValue() as? String, "Codex、Cursor")
+        XCTAssertEqual(tagButton.accessibilityValue() as? String, "ChatGPT、Cursor")
         XCTAssertEqual(model.effectiveMapping[.buttonY, .long].referenceID, original.id.uuidString)
         tagButton.performClick(nil)
         await flushUI()
@@ -104,20 +104,20 @@ final class MacroTagFilterTests: XCTestCase {
                                  "Long macro lists must scroll inside the popover")
         try capturePopup(popup, filename: "mapping-macro-picker-window.png")
         let content = try XCTUnwrap(popup.contentView)
-        let expected = model.macros.filter { !$0.tagIDs.isDisjoint(with: ["codex", "cursor"]) }[1]
+        let expected = model.macros.filter { !$0.tagIDs.isDisjoint(with: ["chatgpt", "cursor"]) }[1]
         try click(NSPoint(x: 90, y: 83), in: content, window: popup)
         await flushUI()
         XCTAssertFalse(popup.isVisible)
         XCTAssertEqual(model.effectiveMapping[.buttonY, .long].referenceID, original.id.uuidString,
                        "Selecting a macro only changes the draft")
         XCTAssertEqual(macroButton.accessibilityValue() as? String, expected.name)
-        XCTAssertEqual(tagButton.accessibilityValue() as? String, "Codex、Cursor")
+        XCTAssertEqual(tagButton.accessibilityValue() as? String, "ChatGPT、Cursor")
 
         try clickEditorButton("mapping-editor-cancel", in: host)
         await flushUI()
         XCTAssertFalse(model.editorVisible)
         XCTAssertEqual(model.effectiveMapping[.buttonY, .long].referenceID, original.id.uuidString)
-        let last = try XCTUnwrap(model.macros.last { !$0.tagIDs.isDisjoint(with: ["codex", "cursor"]) })
+        let last = try XCTUnwrap(model.macros.last { !$0.tagIDs.isDisjoint(with: ["chatgpt", "cursor"]) })
         model.update(ButtonMapping(action: .macro, referenceID: last.id.uuidString), for: .buttonY, trigger: .long)
         host.rootView = MappingEditorSheet(model: model, actionFilter: .constant(.all)).id(UUID())
         await flushUI()

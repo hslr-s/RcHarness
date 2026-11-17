@@ -61,7 +61,7 @@ final class GlobalButtonTests: XCTestCase {
         let model = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
         model.saveProfile(name: "工作")
         let work = model.selectedProfileID!
-        model.bindProfile(work, to: "codex")
+        model.bindProfile(work, to: "chatgpt")
         var output: RemoteMapping?
         model.onMappingChange = { output = $0 }
         model.update(ButtonMapping(action: .copy), for: .power, trigger: .single)

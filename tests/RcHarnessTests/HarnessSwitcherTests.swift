@@ -137,7 +137,7 @@ final class HarnessSwitcherTests: XCTestCase {
                     application(60, bundle: "com.tencent.workbuddy.mac")]
         let items = HarnessSwitcherItem.running(harnesses: harnesses, applications: apps)
         XCTAssertEqual(items.map(\.id), [10, 30, 60, 40])
-        XCTAssertEqual(items.map(\.harnessID), ["codex", "deepseek", "workbuddy", "local"])
+        XCTAssertEqual(items.map(\.harnessID), ["chatgpt", "deepseek", "workbuddy", "local"])
         XCTAssertTrue(harnesses.allSatisfy { $0.profileID == nil })
     }
 

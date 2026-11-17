@@ -15,10 +15,10 @@ final class ChromecastDefaultMappingTests: XCTestCase {
         defaults.removePersistentDomain(forName: suite)
     }
 
-    func testDefaultAndCodexSchemesMatchScreenshotAndResetWithoutChangingGlobals() throws {
+    func testDefaultAndChatGPTSchemesMatchScreenshotAndResetWithoutChangingGlobals() throws {
         let model = RemoteDashboardModel(mapping: .defaults, defaults: defaults,
                                          remoteProfile: RemoteProfiles.googleG9N9N)
-        let codex = try XCTUnwrap(model.harnesses.first { $0.id == "codex" }?.profileID)
+        let chatgpt = try XCTUnwrap(model.harnesses.first { $0.id == "chatgpt" }?.profileID)
         let expected: [(ControllerInput, RemoteAction, RemoteAction, RemoteAction)] = [
             (.dpadUp, .arrowUp, .macro, .disabled),
             (.dpadRight, .arrowRight, .macro, .disabled),
@@ -36,21 +36,21 @@ final class ChromecastDefaultMappingTests: XCTestCase {
             (.inputSource, .switchApplications, .showAllWindows, .showDesktop),
         ]
         let macros: [(ControllerInput, ButtonTrigger, String)] = [
-            (.dpadUp, .double, "Codex-转到最近聊天1"),
-            (.dpadRight, .double, "Codex-转到最近聊天2"),
-            (.dpadDown, .double, "Codex-转到最近聊天3"),
-            (.dpadLeft, .double, "Codex-转到最近聊天4"),
-            (.rightShoulder, .double, "Codex-转到最近聊天5"),
-            (.leftShoulder, .double, "Codex-转到最近聊天6"),
-            (.buttonA, .double, "Codex-新建会话"),
-            (.youtube, .single, "Codex-切换会话与标签页"),
-            (.youtube, .double, "Codex-新建独立会话"),
-            (.mute, .double, "Codex-上一个会话"),
-            (.netflix, .double, "Codex-下一个会话"),
+            (.dpadUp, .double, "ChatGPT-转到最近聊天1"),
+            (.dpadRight, .double, "ChatGPT-转到最近聊天2"),
+            (.dpadDown, .double, "ChatGPT-转到最近聊天3"),
+            (.dpadLeft, .double, "ChatGPT-转到最近聊天4"),
+            (.rightShoulder, .double, "ChatGPT-转到最近聊天5"),
+            (.leftShoulder, .double, "ChatGPT-转到最近聊天6"),
+            (.buttonA, .double, "ChatGPT-新建会话"),
+            (.youtube, .single, "ChatGPT-切换会话与标签页"),
+            (.youtube, .double, "ChatGPT-新建独立会话"),
+            (.mute, .double, "ChatGPT-上一个会话"),
+            (.netflix, .double, "ChatGPT-下一个会话"),
         ]
         let globals = model.globalButtons
         let original = model.mapping
-        for id in [SavedKeyProfile.defaultID, codex] {
+        for id in [SavedKeyProfile.defaultID, chatgpt] {
             model.activateProfile(id)
             XCTAssertEqual(model.mapping, original)
             for (input, single, double, long) in expected {
@@ -75,12 +75,12 @@ final class ChromecastDefaultMappingTests: XCTestCase {
         XCTAssertEqual(model.danglingReferenceCount(), 0)
     }
 
-    func testDeletedOrRenamedCodexMacrosRemainRespectedWhenGeneratingGoogleDefaults() throws {
-        var macros = DefaultMacros.codex
-        let next = try XCTUnwrap(macros.firstIndex { $0.name == "Codex-下一个会话" })
+    func testDeletedOrRenamedChatGPTMacrosRemainRespectedWhenGeneratingGoogleDefaults() throws {
+        var macros = DefaultMacros.chatgpt
+        let next = try XCTUnwrap(macros.firstIndex { $0.name == "ChatGPT-下一个会话" })
         macros[next].name = "我重命名的动作"
         let id = macros[next].id
-        macros.removeAll { $0.name == "Codex-新建独立会话" }
+        macros.removeAll { $0.name == "ChatGPT-新建独立会话" }
         let mapping = RemoteMapping.chromecastDefaults(macros: macros)
         XCTAssertEqual(mapping[.netflix, .double].referenceID, id.uuidString)
         XCTAssertEqual(mapping[.youtube, .double].action, .disabled)

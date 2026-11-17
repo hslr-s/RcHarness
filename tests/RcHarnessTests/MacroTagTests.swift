@@ -32,7 +32,7 @@ final class MacroTagTests: XCTestCase {
         var renamed = try XCTUnwrap(presets.first)
         renamed.name = "我的工作流"
         renamed.steps = [MacroStep(mapping: ButtonMapping(action: .copy), delay: 0.7)]
-        let custom = SavedMacro(name: "Codex-新建会话")
+        let custom = SavedMacro(name: "ChatGPT-新建会话")
         let originals = presets + [custom]
         let data = try legacyData(originals.map { $0.id == renamed.id ? renamed : $0 })
         try SettingsStorage.saveValues([SettingsKeys.Stored.macros: { data }], defaults: defaults)
@@ -60,10 +60,10 @@ final class MacroTagTests: XCTestCase {
         let harnesses = model.harnesses
         let plan = try MacroExecutionPlan(initial, macros: model.macros)
 
-        model.updateMacroTags(["codex", "cursor", MacroTag.general.id], for: id)
+        model.updateMacroTags(["chatgpt", "cursor", MacroTag.general.id], for: id)
         let tagged = try XCTUnwrap(model.macros.first { $0.id == id })
         XCTAssertTrue(tagged.matches(tagID: nil))
-        XCTAssertTrue(tagged.matches(tagID: "codex"))
+        XCTAssertTrue(tagged.matches(tagID: "chatgpt"))
         XCTAssertTrue(tagged.matches(tagID: "cursor"))
         XCTAssertTrue(tagged.matches(tagID: MacroTag.general.id))
         XCTAssertFalse(tagged.matches(tagID: "claude"))
@@ -74,9 +74,9 @@ final class MacroTagTests: XCTestCase {
         XCTAssertEqual(updatedPlan.events.map(\.mapping), plan.events.map(\.mapping))
         XCTAssertEqual(updatedPlan.events.map(\.offset), plan.events.map(\.offset))
 
-        model.setHarnessEnabled("codex", enabled: false)
+        model.setHarnessEnabled("chatgpt", enabled: false)
         XCTAssertEqual(model.macros.first { $0.id == id }?.tagIDs, tagged.tagIDs)
-        XCTAssertTrue(MacroTag.all.contains { $0.id == "codex" })
+        XCTAssertTrue(MacroTag.all.contains { $0.id == "chatgpt" })
         model.flushPendingWrites()
         XCTAssertEqual(RemoteDashboardModel(mapping: .defaults, defaults: defaults).macros, model.macros)
     }
@@ -103,7 +103,7 @@ final class MacroTagTests: XCTestCase {
         XCTAssertEqual(restored.macros, model.macros)
         let untagged = try XCTUnwrap(restored.macros.first { $0.id == preset.id })
         XCTAssertTrue(untagged.matches(tagID: nil))
-        XCTAssertFalse(untagged.matches(tagID: "codex"))
+        XCTAssertFalse(untagged.matches(tagID: "chatgpt"))
         XCTAssertFalse(untagged.matches(tagID: MacroTag.general.id))
     }
 

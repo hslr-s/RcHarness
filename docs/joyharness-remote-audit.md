@@ -1,6 +1,6 @@
 # JoyHarness 遥控器功能审计
 
-审计对象：[`nixihz/JoyHarness`](https://github.com/nixihz/JoyHarness)，本地审计快照 `1e13f47aa459631cb8eea8a0d8a1e37d80e3bd79`（2026-10-21）。重点是 Xiaomi Bluetooth Remote 2 Pro（型号 `RC003-MS`）及其与 Codex Micro 的连接边界。
+审计对象：[`nixihz/JoyHarness`](https://github.com/nixihz/JoyHarness)，本地审计快照 `1e13f47aa459631cb8eea8a0d8a1e37d80e3bd79`（2026-10-21）。重点是 Xiaomi Bluetooth Remote 2 Pro（型号 `RC003-MS`）及其与 ChatGPT Micro 的连接边界。
 
 RcHarness 的产品约束为 **Intel 或 Apple Silicon + macOS 14 及以上 + 纯软件适配**。因此，本文只把 JoyHarness 中不依赖 RP2040 的遥控器能力作为 RcHarness 候选功能；依赖开发板的部分保留为排除项和边界说明。遥控器适配按设备驱动设计，当前仅以仓库内的 `RC003-MS` 作为参考，不表示首期只能支持这一款。
 
@@ -12,11 +12,11 @@ RcHarness 的产品约束为 **Intel 或 Apple Silicon + macOS 14 及以上 + �
 |---|---:|---|
 | RC003-MS 按键控制 Mac：方向键、Enter、Backspace、Esc、模式切换、截图，以及自定义快捷键 | 否 | 直接由 macOS IOHID 接收，Joy Harness 用 CoreGraphics/系统键发送输出 |
 | RC003-MS 内置麦克风输入到语音应用 | 否（但需要安装随 App 提供的 HAL 音频组件） | 由 CoreBluetooth 接收 ATVV BLE 音频并输出为 Joy Harness 虚拟麦克风 |
-| 音量键切换六个 Codex 任务槽位 | 是 | 默认映射是 `previousSlot`/`nextSlot`，需要 RP2040 Vendor HID |
-| Codex 原生审批/拒绝、Codex Micro `ACT10` 按住说话、槽位打开/同步 | 是 | 这些动作通过 RP2040 的 USB CDC + Vendor HID 送入 Codex Desktop |
-| JoyHarness 宣传的完整“遥控器 + Codex”能力 | 是 | 仅有 RC003-MS 时不能称为完整功能 |
+| 音量键切换六个 ChatGPT 任务槽位 | 是 | 默认映射是 `previousSlot`/`nextSlot`，需要 RP2040 Vendor HID |
+| ChatGPT 原生审批/拒绝、ChatGPT Micro `ACT10` 按住说话、槽位打开/同步 | 是 | 这些动作通过 RP2040 的 USB CDC + Vendor HID 送入 ChatGPT Desktop |
+| JoyHarness 宣传的完整“遥控器 + ChatGPT”能力 | 是 | 仅有 RC003-MS 时不能称为完整功能 |
 
-因此，按 RcHarness 的目标范围，RC003-MS 的 HID 映射和内置麦克风均可采用纯软件实现，**无需焊接、嫁接或另加微控制器**。JoyHarness 的 Codex Micro 槽位、审批和原生按住说话明确排除在 RcHarness 首期之外，因为它们必须加入已刷固件的 Raspberry Pi Pico/兼容 RP2040，并使用数据线连接 Mac。
+因此，按 RcHarness 的目标范围，RC003-MS 的 HID 映射和内置麦克风均可采用纯软件实现，**无需焊接、嫁接或另加微控制器**。JoyHarness 的 ChatGPT Micro 槽位、审批和原生按住说话明确排除在 RcHarness 首期之外，因为它们必须加入已刷固件的 Raspberry Pi Pico/兼容 RP2040，并使用数据线连接 Mac。
 
 ## 代码证据
 
@@ -29,7 +29,7 @@ RcHarness 的产品约束为 **Intel 或 Apple Silicon + macOS 14 及以上 + �
 - OK → Enter；Back → Backspace；Home → Escape；方向键 → 系统方向键；
 - Menu → Toggle Native/Mapping Mode；Custom → 截图；
 - Voice → Right Command（面向 Spokenly 等外部语音应用）；
-- 音量 −/+ → 上一个/下一个 Codex 槽位。
+- 音量 −/+ → 上一个/下一个 ChatGPT 槽位。
 
 其中最后一项是“按键本身可读”与“动作能否完成”的分界：按键能被 RC003-MS 直接读到，但槽位动作随后需要 RP2040。
 
@@ -39,7 +39,7 @@ RcHarness 的产品约束为 **Intel 或 Apple Silicon + macOS 14 及以上 + �
 
 这条链路所需的是蓝牙、系统权限和软件驱动安装，不是额外硬件。第一次启用 HAL 组件需要管理员授权并会短暂重载音频服务；外部语音应用还要拥有自己的麦克风权限。
 
-### Codex Micro 动作明确依赖 RP2040
+### ChatGPT Micro 动作明确依赖 RP2040
 
 `Sources/JoyHarness/JoyHarnessMain.swift` 中：
 
@@ -48,7 +48,7 @@ RcHarness 的产品约束为 **Intel 或 Apple Silicon + macOS 14 及以上 + �
 - 按键桥的 `keyHandler` 把 Micro key 发送到 `rp2040.sendKey`；
 - 其他鼠标、滚轮和系统键则直接交给本机的 mouse/system-key bridge。
 
-仓库 README 的能力矩阵也明确区分：仅 App + controller 能提供鼠标、滚动、系统键和诊断；App + controller + RP2040 才提供完整 Codex 输入、按住说话和确认反馈。RP2040 固件暴露 `Codex Micro` Vendor HID 和 `Joy Harness Bridge` USB CDC 两个接口，需刷入固件并保持数据线连接。
+仓库 README 的能力矩阵也明确区分：仅 App + controller 能提供鼠标、滚动、系统键和诊断；App + controller + RP2040 才提供完整 ChatGPT 输入、按住说话和确认反馈。RP2040 固件暴露 `ChatGPT Micro` Vendor HID 和 `Joy Harness Bridge` USB CDC 两个接口，需刷入固件并保持数据线连接。
 
 ## 运行前置条件
 
@@ -60,7 +60,7 @@ RcHarness 的产品约束为 **Intel 或 Apple Silicon + macOS 14 及以上 + �
 4. 启用随 App 提供的 Remote Microphone HAL 组件，并在系统/语音应用中选择 `Joy Harness 遥控器麦克风`；
 5. 如果安装了 Karabiner-Elements，关闭该遥控器的 Modify events，避免它占用 HID 设备。
 
-如果只使用遥控器按键映射，不启用麦克风，则不需要安装 HAL 组件。RcHarness 首期不实现 Codex Micro 完整能力，因此不要求 Codex Desktop Micro、RP2040 固件或数据线。
+如果只使用遥控器按键映射，不启用麦克风，则不需要安装 HAL 组件。RcHarness 首期不实现 ChatGPT Micro 完整能力，因此不要求 ChatGPT Desktop Micro、RP2040 固件或数据线。
 
 ## 验证边界
 

@@ -30,7 +30,7 @@ HeldKey 虽然包含修饰键和事件来源，真正决定是否发送 down 的
 
 位置：[HarnessConfiguration.swift](../Sources/RcHarness/HarnessConfiguration.swift#L61)，以及 normalizeProfiles 中默认方案初始化逻辑。
 
-migratingRetiredBuiltIn 把 Antigravity 替换为 DeepSeek 时复制了启用状态、profileID 和旧映射，但没有复制 didInitializeDefaultProfile。对于带有“已初始化、主动解绑”状态的旧配置，替换后的标记变为 false；normalizeProfiles 随即重新创建并绑定 DeepSeek 默认方案。
+当时的旧内置应用迁移到 DeepSeek 时复制了启用状态、profileID 和旧映射，但没有复制 didInitializeDefaultProfile。对于带有“已初始化、主动解绑”状态的旧配置，替换后的标记变为 false；normalizeProfiles 随即重新创建并绑定 DeepSeek 默认方案。
 
 隔离测试导入合法的 v3 结构，使用 `didInitializeDefaultProfile = true`、`profileID = nil` 的旧 Harness，导入后 DeepSeek 的 profileID 变为非空。该问题仅涉及包含这一状态的旧配置；未声称所有历史版本都产生过这组数据。
 

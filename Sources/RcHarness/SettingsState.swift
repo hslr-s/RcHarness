@@ -324,19 +324,15 @@ struct SavedKeyProfile: Codable, Identifiable, Equatable {
             ?? HarnessConfiguration.defaults.first { $0.id == protectedBuiltInID }
     }
 
-    static func migratingRetiredName(in profiles: [Self], boundProfileID: UUID?) -> [Self] {
-        var result = profiles
-        if let id = boundProfileID,
-           let index = result.firstIndex(where: { $0.id == id && $0.name == "Antigravity 按键方案" }) {
-            result[index].name = uniqueName("DeepSeek 按键方案",
-                existingNames: profiles.filter { $0.id != id }.map(\.name), fallback: "DeepSeek 按键方案")
-        }
-        return result
-    }
-
     /// Repair names without changing profile IDs, mappings or array order.
     /// Reserve existing suffixes and give the default profile first choice.
     static func normalizingNames(in profiles: [Self]) -> [Self] {
+        let profiles = profiles.map { profile in
+            var profile = profile
+            profile.name = HarnessConfiguration.migratingLegacyName(profile.name)
+            profile.protectedBuiltInID = profile.protectedBuiltInID.map(HarnessConfiguration.migratingRenamedID)
+            return profile
+        }
         var result = profiles
         let reservedNames = profiles.map(\.name)
         var usedNames: [String] = []
@@ -373,21 +369,20 @@ struct RemoteKeyConfiguration: Codable, Equatable {
     func normalized() -> Self {
         var result = self
         for (id, profileID) in harnessProfileIDs {
-            let currentID = HarnessConfiguration.migratingRetiredID(id)
+            let currentID = HarnessConfiguration.migratingRenamedID(id)
             guard currentID != id else { continue }
             result.harnessProfileIDs.removeValue(forKey: id)
             // An explicit binding or intentional unbinding of the replacement
-            // wins over the retired app's state when both are present.
+            // wins over the old name's state when both are present.
             if result.harnessProfileIDs[currentID] == nil, !initializedHarnessIDs.contains(currentID) {
                 result.harnessProfileIDs[currentID] = profileID
             }
         }
         var initialized = Set<String>()
-        result.initializedHarnessIDs = initializedHarnessIDs.map(HarnessConfiguration.migratingRetiredID)
+        result.initializedHarnessIDs = initializedHarnessIDs.map(HarnessConfiguration.migratingRenamedID)
             .filter { initialized.insert($0).inserted }
-        result.selectedHarnessID = selectedHarnessID.map(HarnessConfiguration.migratingRetiredID)
-        result.profiles = SavedKeyProfile.normalizingNames(in: SavedKeyProfile.migratingRetiredName(
-            in: profiles, boundProfileID: result.harnessProfileIDs["deepseek"]))
+        result.selectedHarnessID = selectedHarnessID.map(HarnessConfiguration.migratingRenamedID)
+        result.profiles = SavedKeyProfile.normalizingNames(in: profiles)
         return result
     }
 }
@@ -482,6 +477,12 @@ struct SavedMacro: Codable, Identifiable, Equatable {
 
     /// Repair old names without changing the IDs used by button mappings.
     static func normalizingNames(in macros: [Self]) -> [Self] {
+        let macros = macros.map { macro in
+            var macro = macro
+            macro.name = HarnessConfiguration.migratingLegacyName(macro.name)
+            macro.tagIDs = Set(macro.tagIDs.map(HarnessConfiguration.migratingRenamedID))
+            return macro
+        }
         let reservedNames = macros.map(\.name)
         var usedNames: [String] = []
         return macros.map { macro in

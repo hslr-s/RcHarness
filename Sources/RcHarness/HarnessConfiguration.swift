@@ -35,7 +35,7 @@ struct HarnessConfiguration: Equatable, Identifiable {
     private static let workBuddy = Self(id: "workbuddy", name: "WorkBuddy", bundleIdentifier: "com.tencent.workbuddy.mac")
     private static let builtInIDs = Set(defaults.map(\.id))
     static let defaults: [Self] = [
-        Self(id: "codex", name: "Codex", bundleIdentifier: "com.openai.codex"),
+        Self(id: "chatgpt", name: "ChatGPT", bundleIdentifier: "com.openai.codex"),
         Self(id: "claude", name: "Claude", bundleIdentifier: "com.anthropic.claudefordesktop"),
         Self(id: "cursor", name: "Cursor", bundleIdentifier: "com.todesktop.230313mzl4w4u92"),
         Self(id: "deepseek", name: "DeepSeek", bundleIdentifier: "com.deepseek.dsh"),
@@ -58,9 +58,9 @@ struct HarnessConfiguration: Equatable, Identifiable {
         [bundleIdentifier].compactMap { $0 } + (id == Self.workBuddy.id ? ["com.workbuddy.workbuddy"] : [])
     }
 
-    /// Replace the retired built-in while retaining its scheme and enabled state.
-    func migratingRetiredBuiltIn() -> Self {
-        let migratedID = Self.migratingRetiredID(id)
+    /// Rename the built-in while retaining its configuration and application path.
+    func migratingRenamedBuiltIn() -> Self {
+        let migratedID = Self.migratingRenamedID(id)
         guard migratedID != id else { return self }
         var replacement = Self.defaults.first { $0.id == migratedID }!
         replacement.isEnabled = isEnabled
@@ -68,11 +68,17 @@ struct HarnessConfiguration: Equatable, Identifiable {
         replacement.didInitializeDefaultProfile = didInitializeDefaultProfile
         replacement.legacyMapping = legacyMapping
         replacement.hasLegacyMapping = hasLegacyMapping
+        replacement.name = Self.migratingLegacyName(name)
+        replacement.applicationPath = applicationPath
         return replacement
     }
 
-    static func migratingRetiredID(_ id: String) -> String {
-        id == "antigravity" ? "deepseek" : id
+    static func migratingRenamedID(_ id: String) -> String {
+        id == "codex" ? "chatgpt" : id
+    }
+
+    static func migratingLegacyName(_ name: String) -> String {
+        name.replacingOccurrences(of: "Codex", with: "ChatGPT", options: .caseInsensitive)
     }
 
     func matches(applicationPath path: String?, bundleIdentifier identifier: String?) -> Bool {

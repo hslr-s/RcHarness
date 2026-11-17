@@ -197,7 +197,7 @@ final class ConfigurationDeletionTests: XCTestCase {
 
     func testBoundOrBuiltInProfilesStayProtectedAndMissingIDsDoNothing() throws {
         let model = model()
-        model.activateHarness("codex")
+        model.activateHarness("chatgpt")
         let builtIn = try XCTUnwrap(model.selectedProfileID)
         XCTAssertTrue(model.saveProfile(name: "绑定方案"))
         let bound = try XCTUnwrap(model.selectedProfileID)

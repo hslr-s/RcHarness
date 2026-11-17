@@ -9,8 +9,8 @@ final class MacroReferencePickerTests: XCTestCase {
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
         let model = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
-        let selected = try XCTUnwrap(model.macros.first { $0.tagIDs == ["codex"] })
-        let sharedID = model.addMacro(tagIDs: ["codex", "cursor"])
+        let selected = try XCTUnwrap(model.macros.first { $0.tagIDs == ["chatgpt"] })
+        let sharedID = model.addMacro(tagIDs: ["chatgpt", "cursor"])
         var referenceID: String? = selected.id.uuidString
         var tagIDs: Set<String> = []
         var referenceWrites = 0
@@ -28,14 +28,14 @@ final class MacroReferencePickerTests: XCTestCase {
         XCTAssertEqual(picker.selectedOutsideFilter, selected)
         XCTAssertEqual(picker.referenceID, selected.id.uuidString)
 
-        picker.tagIDs = ["codex"]
+        picker.tagIDs = ["chatgpt"]
         XCTAssertTrue(picker.matchingMacros.contains { $0.id == sharedID })
         XCTAssertTrue(picker.matchingMacros.contains { $0.id == selected.id })
         XCTAssertNil(picker.selectedOutsideFilter)
-        picker.tagIDs = ["codex", "cursor"]
+        picker.tagIDs = ["chatgpt", "cursor"]
         XCTAssertTrue(picker.matchingMacros.contains { $0.id == selected.id })
         XCTAssertEqual(picker.matchingMacros.filter { $0.id == sharedID }.count, 1)
-        XCTAssertTrue(picker.matchingMacros.allSatisfy { !$0.tagIDs.isDisjoint(with: ["codex", "cursor"]) })
+        XCTAssertTrue(picker.matchingMacros.allSatisfy { !$0.tagIDs.isDisjoint(with: ["chatgpt", "cursor"]) })
         picker.tagIDs = []
         XCTAssertEqual(picker.matchingMacros, model.macros)
         XCTAssertEqual(referenceWrites, 0, "Changing a filter must never write the selected action")

@@ -264,80 +264,20 @@ final class HarnessTests: XCTestCase {
         }
     }
 
-    func testRetiredBuiltInMigratesOnRestartAndMatchesDeepSeek() {
-        var mapping = RemoteMapping.defaults
-        mapping[.buttonA] = ButtonMapping(action: .copy)
-        let profile = SavedKeyProfile(name: "Antigravity 按键方案", mapping: mapping)
-        let retired = HarnessConfiguration(id: "antigravity", name: "Antigravity",
-                                           bundleIdentifier: "com.google.antigravity",
-                                           applicationPath: "/Applications/Antigravity.app", profileID: profile.id)
-        SettingsStorage.save([profile], SettingsKeys.Stored.profiles, defaults: defaults)
-        SettingsStorage.save([retired], SettingsKeys.Stored.harnesses, defaults: defaults)
-        defaults.set("antigravity", forKey: SettingsKeys.selectedHarnessID)
-        defaults.set(2, forKey: SettingsKeys.profileBindingsVersion)
-
-        let model = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
-        XCTAssertEqual(model.harnesses.map(\.id), ["deepseek", "codex", "claude", "cursor", "workbuddy", "opencode"])
-        XCTAssertEqual(model.harnesses.first?.name, "DeepSeek")
-        XCTAssertTrue(model.harnesses.first!.isBuiltIn)
-        XCTAssertNil(model.harnesses.first?.applicationPath)
-        XCTAssertEqual(model.selectedHarnessID, "deepseek")
-        XCTAssertEqual(model.profiles.first(where: { $0.id == profile.id })?.name, "DeepSeek 按键方案")
-        XCTAssertEqual(model.mapping, mapping)
-        model.matchApplication(nil, bundleIdentifier: "com.google.antigravity")
-        XCTAssertNil(model.selectedHarnessID)
-        model.matchApplication(nil, bundleIdentifier: "com.deepseek.dsh")
-        XCTAssertEqual(model.selectedHarnessID, "deepseek")
-        XCTAssertEqual(model.mapping, mapping)
-
-        let restored = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
-        XCTAssertEqual(restored.harnesses, model.harnesses)
-        XCTAssertEqual(restored.profiles, model.profiles)
-        XCTAssertEqual(restored.selectedHarnessID, "deepseek")
-    }
-
-    func testAlreadyMigratedDeepSeekRenamesOnlyItsLegacyProfileAndAvoidsNameConflicts() throws {
-        let model = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
-        var mapping = RemoteMapping.defaults
-        mapping[.buttonA] = ButtonMapping(action: .copy)
-        let legacy = SavedKeyProfile(name: "Antigravity 按键方案", mapping: mapping)
-        let existing = SavedKeyProfile(name: "DeepSeek 按键方案", mapping: .defaults)
-        let unbound = SavedKeyProfile(name: "Antigravity 按键方案", mapping: .defaults)
-        var harness = try XCTUnwrap(HarnessConfiguration.defaults.first(where: { $0.id == "deepseek" }))
-        harness.profileID = legacy.id
-        let backup = SettingsBackup(mapping: .defaults, profiles: [legacy, existing, unbound], macros: [], phrases: [], harnesses: [harness])
-        try model.applyConfiguration(backup)
-        let migrated = try XCTUnwrap(model.profiles.first(where: { $0.id == legacy.id }))
-        XCTAssertTrue(migrated.name.hasPrefix("DeepSeek 按键方案"))
-        XCTAssertNotEqual(migrated.name, existing.name)
-        XCTAssertEqual(migrated.mapping, mapping)
-        XCTAssertEqual(model.profiles.first(where: { $0.id == unbound.id }), unbound)
-        model.matchApplication(nil, bundleIdentifier: "com.deepseek.dsh")
-        XCTAssertEqual(model.selectedProfileID, legacy.id)
-        XCTAssertEqual(model.mapping, mapping)
-        let restored = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
-        XCTAssertEqual(restored.profiles, model.profiles)
-
-        var custom = legacy
-        custom.name = "我的工作方案"
-        try model.applyConfiguration(SettingsBackup(mapping: .defaults, profiles: [custom], macros: [], phrases: [], harnesses: [harness]))
-        XCTAssertEqual(model.profiles.first(where: { $0.id == legacy.id }), custom)
-    }
-
-    func testRetiredBuiltInImportPreservesDisabledStateAndLegacyMapping() throws {
+    func testRenamedBuiltInImportPreservesDisabledStateAndLegacyMapping() throws {
         var mapping = RemoteMapping.defaults
         mapping[.power] = ButtonMapping(action: .paste)
-        let retired = HarnessConfiguration(id: "antigravity", name: "Antigravity",
-                                           bundleIdentifier: "com.google.antigravity", isEnabled: false,
-                                           legacyMapping: mapping, hasLegacyMapping: true)
-        let backup = SettingsBackup(version: 1, mapping: .defaults, profiles: [], macros: [], phrases: [], harnesses: [retired])
+        let legacy = HarnessConfiguration(id: "codex", name: "Codex",
+                                          bundleIdentifier: "com.openai.codex", isEnabled: false,
+                                          legacyMapping: mapping, hasLegacyMapping: true)
+        let backup = SettingsBackup(version: 1, mapping: .defaults, profiles: [], macros: [], phrases: [], harnesses: [legacy])
         let model = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
         try model.applyConfiguration(backup)
         let harness = try XCTUnwrap(model.harnesses.first)
-        XCTAssertEqual(harness.id, "deepseek")
+        XCTAssertEqual(harness.id, "chatgpt")
         XCTAssertFalse(harness.isEnabled)
         XCTAssertEqual(model.profiles.first(where: { $0.id == harness.profileID })?.mapping, mapping)
-        model.matchApplication(nil, bundleIdentifier: "com.deepseek.dsh")
+        model.matchApplication(nil, bundleIdentifier: "com.openai.codex")
         XCTAssertNil(model.selectedHarnessID)
     }
 
@@ -345,16 +285,16 @@ final class HarnessTests: XCTestCase {
         let model = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
         model.update(ButtonMapping(action: .paste), for: .buttonA, trigger: .single)
         let profile = makeProfile(model)
-        XCTAssertTrue(model.bindProfile(profile, to: "codex"))
-        model.activateHarness("codex")
+        XCTAssertTrue(model.bindProfile(profile, to: "chatgpt"))
+        model.activateHarness("chatgpt")
         model.update(ButtonMapping(action: .copy), for: .buttonA, trigger: .single)
         model.update(ButtonMapping(action: .escape), for: .power, trigger: .single)
         XCTAssertEqual(model.profiles.first(where: { $0.id == profile })?.mapping[.power, .single].action, .disabled)
         XCTAssertEqual(model.effectiveMapping[.power, .single].action, .escape)
         // The legacy mapping stored on Harness is no longer edited or used.
-        XCTAssertEqual(model.harnesses.first(where: { $0.id == "codex" })?.legacyMapping[.buttonA].action, .enter)
+        XCTAssertEqual(model.harnesses.first(where: { $0.id == "chatgpt" })?.legacyMapping[.buttonA].action, .enter)
         let restored = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
-        XCTAssertEqual(restored.selectedHarnessID, "codex")
+        XCTAssertEqual(restored.selectedHarnessID, "chatgpt")
         XCTAssertEqual(restored.selectedProfileID, profile)
         XCTAssertEqual(restored.mapping[.buttonA].action, .copy)
         XCTAssertEqual(restored.effectiveMapping[.power, .single].action, .escape)
@@ -370,23 +310,23 @@ final class HarnessTests: XCTestCase {
             XCTAssertTrue(model.bindProfile(first, to: harness.id))
         }
         XCTAssertEqual(model.boundHarnesses(for: first).map(\.id), model.harnesses.map(\.id))
-        model.activateHarness("codex")
-        XCTAssertTrue(model.bindProfile(second, to: "codex"))
+        model.activateHarness("chatgpt")
+        XCTAssertTrue(model.bindProfile(second, to: "chatgpt"))
         XCTAssertEqual(model.selectedProfileID, second)
         XCTAssertEqual(model.boundHarnesses(for: first).map(\.id), ["claude", "cursor", "deepseek", "workbuddy", "opencode"])
-        XCTAssertEqual(model.boundHarnesses(for: second).map(\.id), ["codex"])
+        XCTAssertEqual(model.boundHarnesses(for: second).map(\.id), ["chatgpt"])
         XCTAssertTrue(model.bindProfile(nil, to: "cursor"))
-        XCTAssertEqual(model.selectedHarnessID, "codex")
+        XCTAssertEqual(model.selectedHarnessID, "chatgpt")
         XCTAssertEqual(model.boundHarnesses(for: first).map(\.id), ["claude", "deepseek", "workbuddy", "opencode"])
-        XCTAssertTrue(model.bindProfile(nil, to: "codex"))
+        XCTAssertTrue(model.bindProfile(nil, to: "chatgpt"))
         XCTAssertNil(model.selectedHarnessID)
         XCTAssertEqual(model.selectedProfileID, SavedKeyProfile.defaultID)
         XCTAssertTrue(model.boundHarnesses(for: second).isEmpty)
-        XCTAssertTrue(model.bindProfile(SavedKeyProfile.defaultID, to: "codex"))
+        XCTAssertTrue(model.bindProfile(SavedKeyProfile.defaultID, to: "chatgpt"))
         XCTAssertTrue(model.bindProfile(SavedKeyProfile.defaultID, to: "claude"))
-        XCTAssertFalse(model.bindProfile(UUID(), to: "codex"))
+        XCTAssertFalse(model.bindProfile(UUID(), to: "chatgpt"))
         XCTAssertFalse(model.bindProfile(first, to: "missing-harness"))
-        XCTAssertEqual(model.boundHarnesses(for: SavedKeyProfile.defaultID).map(\.id), ["codex", "claude"])
+        XCTAssertEqual(model.boundHarnesses(for: SavedKeyProfile.defaultID).map(\.id), ["chatgpt", "claude"])
         let restored = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
         XCTAssertEqual(restored.harnesses, model.harnesses)
     }
@@ -394,7 +334,7 @@ final class HarnessTests: XCTestCase {
     func testSharedProfileEditsApplyWhenSwitchingBetweenHarnesses() {
         let model = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
         let profile = makeProfile(model)
-        model.bindProfile(profile, to: "codex")
+        model.bindProfile(profile, to: "chatgpt")
         model.bindProfile(profile, to: "cursor")
         model.matchApplication(nil, bundleIdentifier: "com.openai.codex")
         model.update(ButtonMapping(action: .copy), for: .buttonA, trigger: .double)
@@ -406,10 +346,10 @@ final class HarnessTests: XCTestCase {
         XCTAssertEqual(applied?[.buttonA, .double].action, .copy)
         model.update(ButtonMapping(action: .paste), for: .power, trigger: .single)
         model.matchApplication(nil, bundleIdentifier: "com.openai.codex")
-        XCTAssertEqual(model.selectedHarnessID, "codex")
+        XCTAssertEqual(model.selectedHarnessID, "chatgpt")
         XCTAssertEqual(applied?[.power, .single].action, .paste)
         let restored = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
-        XCTAssertEqual(restored.boundHarnesses(for: profile).map(\.id), ["codex", "cursor"])
+        XCTAssertEqual(restored.boundHarnesses(for: profile).map(\.id), ["chatgpt", "cursor"])
         restored.activateHarness("cursor")
         XCTAssertEqual(restored.mapping[.buttonA, .double].action, .copy)
         XCTAssertEqual(restored.effectiveMapping[.power, .single].action, .paste)
@@ -419,21 +359,21 @@ final class HarnessTests: XCTestCase {
         let model = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
         let profile = makeProfile(model)
         model.update(ButtonMapping(action: .copy), for: .buttonA, trigger: .single)
-        XCTAssertTrue(model.bindProfile(profile, to: "codex"))
-        model.matchApplication("/Applications/Codex.app", bundleIdentifier: "com.openai.codex")
-        XCTAssertEqual(model.selectedHarnessID, "codex")
+        XCTAssertTrue(model.bindProfile(profile, to: "chatgpt"))
+        model.matchApplication("/Applications/ChatGPT.app", bundleIdentifier: "com.openai.codex")
+        XCTAssertEqual(model.selectedHarnessID, "chatgpt")
         XCTAssertEqual(model.selectedProfileID, profile)
         XCTAssertEqual(model.mapping[.buttonA].action, .copy)
         XCTAssertTrue(model.bindProfile(nil, to: "cursor"))
         model.matchApplication("/Applications/Cursor.app", bundleIdentifier: "com.todesktop.230313mzl4w4u92")
         XCTAssertNil(model.selectedHarnessID)
         XCTAssertEqual(model.selectedProfileID, SavedKeyProfile.defaultID)
-        model.activateHarness("codex")
-        model.setHarnessEnabled("codex", enabled: false)
-        model.matchApplication("/Applications/Codex.app", bundleIdentifier: "com.openai.codex")
+        model.activateHarness("chatgpt")
+        model.setHarnessEnabled("chatgpt", enabled: false)
+        model.matchApplication("/Applications/ChatGPT.app", bundleIdentifier: "com.openai.codex")
         XCTAssertEqual(model.selectedProfileID, SavedKeyProfile.defaultID)
-        XCTAssertEqual(model.boundHarnesses(for: profile).map(\.id).first, "codex")
-        model.setHarnessEnabled("codex", enabled: true)
+        XCTAssertEqual(model.boundHarnesses(for: profile).map(\.id).first, "chatgpt")
+        model.setHarnessEnabled("chatgpt", enabled: true)
         model.matchApplication(nil, bundleIdentifier: "com.openai.codex")
         XCTAssertEqual(model.selectedProfileID, profile)
         model.matchApplication(nil, bundleIdentifier: "other.app")
@@ -443,8 +383,8 @@ final class HarnessTests: XCTestCase {
     func testMappingEditorKeepsTargetStableWhileReceivingRemoteAndAppEvents() {
         let model = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
         let profile = makeProfile(model)
-        model.bindProfile(profile, to: "codex")
-        model.activateHarness("codex")
+        model.bindProfile(profile, to: "chatgpt")
+        model.activateHarness("chatgpt")
         model.selectedInput = .power
         model.selectedTrigger = .single
         model.editorVisible = true
@@ -469,12 +409,12 @@ final class HarnessTests: XCTestCase {
         let model = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
         let profile = makeProfile(model)
         model.update(ButtonMapping(action: .copy), for: .buttonA, trigger: .single)
-        model.bindProfile(profile, to: "codex")
+        model.bindProfile(profile, to: "chatgpt")
         model.bindProfile(profile, to: "cursor")
         let customID = model.addHarness(applicationURL: URL(fileURLWithPath: "/tmp/RcHarness-Test-Editor.app"))
         model.bindProfile(profile, to: customID)
         model.setHarnessEnabled(customID, enabled: false)
-        model.activateHarness("codex")
+        model.activateHarness("chatgpt")
         let originalProfiles = model.profiles
         let originalHarnesses = model.harnesses
         var mappingChanges = 0
@@ -484,7 +424,7 @@ final class HarnessTests: XCTestCase {
         XCTAssertEqual(model.profiles, originalProfiles)
         XCTAssertEqual(model.harnesses, originalHarnesses)
         XCTAssertEqual(model.selectedProfileID, profile)
-        XCTAssertEqual(model.selectedHarnessID, "codex")
+        XCTAssertEqual(model.selectedHarnessID, "chatgpt")
         XCTAssertEqual(model.mapping[.buttonA].action, .copy)
         XCTAssertEqual(mappingChanges, 0)
         let restored = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
@@ -497,7 +437,7 @@ final class HarnessTests: XCTestCase {
         XCTAssertEqual(restored.profiles, originalProfiles)
         XCTAssertEqual(restored.harnesses, originalHarnesses)
 
-        model.bindProfile(nil, to: "codex")
+        model.bindProfile(nil, to: "chatgpt")
         model.bindProfile(nil, to: "cursor")
         XCTAssertFalse(model.canDeleteProfile(profile))
         model.deleteProfile(profile)
@@ -544,7 +484,7 @@ final class HarnessTests: XCTestCase {
         XCTAssertNil(model.selectedHarnessID)
         XCTAssertTrue(model.boundHarnesses(for: profile).isEmpty)
         XCTAssertEqual(model.profiles.first(where: { $0.id == profile })?.mapping[.buttonA, .long].action, .paste)
-        model.removeHarness("codex")
+        model.removeHarness("chatgpt")
         XCTAssertEqual(model.harnesses.count, HarnessConfiguration.defaults.count)
     }
 
@@ -587,13 +527,13 @@ final class HarnessTests: XCTestCase {
         let model = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
         let profile = makeProfile(model)
         model.update(ButtonMapping(action: .copy), for: .buttonA, trigger: .double)
-        model.bindProfile(profile, to: "codex")
+        model.bindProfile(profile, to: "chatgpt")
         model.bindProfile(profile, to: "cursor")
         let backup = try JSONDecoder().decode(SettingsBackup.self, from: JSONEncoder().encode(model.configurationBackup()))
-        model.bindProfile(nil, to: "codex")
+        model.bindProfile(nil, to: "chatgpt")
         model.bindProfile(nil, to: "cursor")
         try model.applyConfiguration(backup)
-        XCTAssertEqual(model.boundHarnesses(for: profile).map(\.id), ["codex", "cursor"])
+        XCTAssertEqual(model.boundHarnesses(for: profile).map(\.id), ["chatgpt", "cursor"])
         model.activateHarness("cursor")
         XCTAssertEqual(model.selectedProfileID, profile)
         XCTAssertEqual(model.mapping[.buttonA, .double].action, .copy)
@@ -612,7 +552,7 @@ final class HarnessTests: XCTestCase {
         harnesses[2].profileID = UUID()
         let backup = SettingsBackup(mapping: .defaults, profiles: [profile, profile], macros: [], phrases: [], harnesses: harnesses)
         try model.applyConfiguration(backup)
-        XCTAssertEqual(model.harnesses.filter { $0.id == "codex" || $0.id == "claude" }.compactMap(\.profileID), [profile.id, profile.id])
+        XCTAssertEqual(model.harnesses.filter { $0.id == "chatgpt" || $0.id == "claude" }.compactMap(\.profileID), [profile.id, profile.id])
         let cursor = try XCTUnwrap(model.harnesses.first { $0.id == "cursor" })
         let cursorProfile = try XCTUnwrap(model.profiles.first { $0.id == cursor.profileID })
         XCTAssertNotEqual(cursorProfile.id, harnesses[2].profileID)
@@ -648,9 +588,9 @@ final class HarnessTests: XCTestCase {
 
     func testApplicationIdentityPrefersBundleIdentifierOverPath() {
         var harness = HarnessConfiguration.defaults[0]
-        harness.applicationPath = "/Applications/Codex.app"
-        XCTAssertTrue(harness.matches(applicationPath: "/Other/Codex.app", bundleIdentifier: "com.openai.codex"))
-        XCTAssertFalse(harness.matches(applicationPath: harness.applicationPath, bundleIdentifier: "other.codex"))
+        harness.applicationPath = "/Applications/ChatGPT.app"
+        XCTAssertTrue(harness.matches(applicationPath: "/Other/ChatGPT.app", bundleIdentifier: "com.openai.codex"))
+        XCTAssertFalse(harness.matches(applicationPath: harness.applicationPath, bundleIdentifier: "other.chatgpt"))
         XCTAssertTrue(harness.matches(applicationPath: harness.applicationPath, bundleIdentifier: nil))
         XCTAssertFalse(harness.matches(applicationPath: nil, bundleIdentifier: nil))
     }
@@ -659,21 +599,21 @@ final class HarnessTests: XCTestCase {
         let model = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
         let profile = makeProfile(model)
         model.update(ButtonMapping(action: .copy), for: .buttonA, trigger: .single)
-        model.bindProfile(profile, to: "codex")
-        model.setHarnessEnabled("codex", enabled: false)
+        model.bindProfile(profile, to: "chatgpt")
+        model.setHarnessEnabled("chatgpt", enabled: false)
         model.activateProfile(nil)
         model.page = .harness
-        model.editHarnessProfile("codex")
+        model.editHarnessProfile("chatgpt")
         XCTAssertEqual(model.page, .mapping)
         XCTAssertEqual(model.selectedProfileID, profile)
         XCTAssertEqual(model.mapping[.buttonA].action, .copy)
-        XCTAssertFalse(model.harnesses.first(where: { $0.id == "codex" })!.isEnabled)
+        XCTAssertFalse(model.harnesses.first(where: { $0.id == "chatgpt" })!.isEnabled)
         XCTAssertNil(model.selectedHarnessID)
     }
 
     func testLegacyProfileMatchesBuiltInHarnessWhenBackupHasNoHarnesses() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        let application = directory.appendingPathComponent("Codex.app")
+        let application = directory.appendingPathComponent("ChatGPT.app")
         let contents = application.appendingPathComponent("Contents")
         try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -682,14 +622,14 @@ final class HarnessTests: XCTestCase {
             .write(to: contents.appendingPathComponent("Info.plist"))
         var mapping = RemoteMapping.defaults
         mapping[.buttonA] = ButtonMapping(action: .copy)
-        let profile = SavedKeyProfile(name: "旧 Codex 方案", applicationPath: application.path, mapping: mapping)
+        let profile = SavedKeyProfile(name: "旧 ChatGPT 方案", applicationPath: application.path, mapping: mapping)
         let backup = SettingsBackup(version: 1, mapping: .defaults, profiles: [profile], macros: [], phrases: [])
         let model = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
         try model.applyConfiguration(backup)
         model.matchApplication(application.path, bundleIdentifier: "com.openai.codex")
         XCTAssertEqual(model.selectedProfileID, profile.id)
         XCTAssertEqual(model.mapping, mapping)
-        XCTAssertEqual(model.harnesses.first(where: { $0.id == "codex" })?.profileID, profile.id)
+        XCTAssertEqual(model.harnesses.first(where: { $0.id == "chatgpt" })?.profileID, profile.id)
     }
 
     func testOldBackupStillDecodesWithoutBindingFields() throws {

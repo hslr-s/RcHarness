@@ -98,7 +98,7 @@ final class HarnessKeyPresetTests: XCTestCase {
         }
     }
 
-    func testGoogleOverridesMatchActualMacShortcutsAndKeepCodexGlobalRoles() throws {
+    func testGoogleOverridesMatchActualMacShortcutsAndKeepChatGPTGlobalRoles() throws {
         let model = RemoteDashboardModel(mapping: .defaults, defaults: defaults,
                                          remoteProfile: RemoteProfiles.googleG9N9N)
         let globals = model.globalButtons

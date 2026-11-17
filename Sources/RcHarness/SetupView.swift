@@ -207,7 +207,7 @@ struct SetupView: View {
     private var welcome: some View {
         VStack(spacing: SettingsStyle.Spacing.groups) {
             SettingsPanel("用遥控器操作常用应用", symbol: "appletvremote.gen4") {
-                Text("方向键、确认键和自定义动作，让你在 Codex、Claude、Cursor 等应用中切换对话、发送常用语。")
+                Text("方向键、确认键和自定义动作，让你在 ChatGPT、Claude、Cursor 等应用中切换对话、发送常用语。")
                     .font(.system(size: 13)).fixedSize(horizontal: false, vertical: true)
                 Divider()
                 Label("检查系统权限与设备连接", systemImage: "lock.shield")

@@ -2,14 +2,14 @@ import Foundation
 
 extension RemoteMapping {
     static func defaults(for profile: RemoteProfile, macros: [SavedMacro]) -> Self {
-        harnessDefaults("codex", for: profile, macros: macros)
+        harnessDefaults("chatgpt", for: profile, macros: macros)
     }
 
     static func chromecastDefaults(macros: [SavedMacro]) -> Self {
         defaults(for: RemoteProfiles.googleG9N9N, macros: macros)
     }
 
-    static func codexDefaults(macros: [SavedMacro], remoteProfile: RemoteProfile = RemoteProfiles.xiaomiRC003) -> Self {
+    static func chatgptDefaults(macros: [SavedMacro], remoteProfile: RemoteProfile = RemoteProfiles.xiaomiRC003) -> Self {
         defaults(for: remoteProfile, macros: macros)
     }
 
@@ -70,8 +70,8 @@ private struct HarnessKeyPreset {
 
     static func forHarness(_ id: String) -> Self? {
         switch id {
-        case "codex":
-            return Self(prefix: "Codex", definitions: DefaultMacros.codex, newConversation: "新建会话",
+        case "chatgpt":
+            return Self(prefix: "ChatGPT", definitions: DefaultMacros.chatgpt, newConversation: "新建会话",
                 navigation: (1...6).map { "转到最近聊天\($0)" },
                 menuSingle: "切换会话与标签页", menuDouble: "新建独立会话",
                 extraLeft: "上一个会话", extraRight: "下一个会话")

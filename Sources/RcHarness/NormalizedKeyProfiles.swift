@@ -22,9 +22,9 @@ struct NormalizedKeyProfiles {
             profiles.insert(SavedKeyProfile(id: SavedKeyProfile.defaultID, name: "默认方案", mapping: defaultMapping), at: 0)
         }
         if let selected = harnesses.first(where: { $0.id == selectedHarnessID }) {
-            selectedHarnessID = selected.migratingRetiredBuiltIn().id
+            selectedHarnessID = selected.migratingRenamedBuiltIn().id
         }
-        harnesses = harnesses.map { $0.migratingRetiredBuiltIn() }
+        harnesses = harnesses.map { $0.migratingRenamedBuiltIn() }
         var harnessIDs = Set<String>()
         harnesses = harnesses.filter { harnessIDs.insert($0.id).inserted }
         for index in harnesses.indices {
@@ -71,9 +71,6 @@ struct NormalizedKeyProfiles {
             }
             harnesses[index].didInitializeDefaultProfile = true
         }
-        // Also repair configurations whose Harness was already migrated to DeepSeek.
-        profiles = SavedKeyProfile.migratingRetiredName(in: profiles,
-            boundProfileID: harnesses.first(where: { $0.id == "deepseek" })?.profileID)
         profiles = SavedKeyProfile.normalizingNames(in: profiles)
     }
 }

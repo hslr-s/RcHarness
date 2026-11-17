@@ -102,7 +102,7 @@ final class ConfigurationImportTests: XCTestCase {
         let model = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
         for remote in RemoteProfiles.all {
             model.selectRemoteProfile(remote.id)
-            model.activateHarness("codex")
+            model.activateHarness("chatgpt")
             model.update(ButtonMapping(action: .paste), for: .buttonA, trigger: .single)
             model.setGlobalInput(.home)
         }

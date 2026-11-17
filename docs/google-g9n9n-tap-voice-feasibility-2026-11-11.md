@@ -61,4 +61,4 @@ PTT 也不自动等于“第二次同键停止”：Realtek 的按下处理在�
 - [4] [Google 托管 Telink gl_audio.h，固定提交 86f5010](https://android.googlesource.com/platform/hardware/telink/atv/refDesignRcu/+/86f501098fb4ba60954cb046201ffe43ca360c3e/application/audio/gl_audio.h)：模型定义与命令枚举。
 - [5] [同提交 gl_audio.c](https://android.googlesource.com/platform/hardware/telink/atv/refDesignRcu/+/86f501098fb4ba60954cb046201ffe43ca360c3e/application/audio/gl_audio.c)：`app_auido_google_callback`、`google_voice_start/stop`、`google_voice_v1p0`。
 - [6] [Google 托管 Realtek voice.c](https://android.googlesource.com/platform/hardware/google/atv/refDesignRcu/realtek/+/refs/heads/main/src/app/google_rcu/voice_module/voice.c)：`voice_handle_mic_key_pressed/released`、能力协商、MIC_OPEN/CLOSE/EXTEND。查阅时 blob 为 `c9bcc5b97cdeaf4bbd2adf64d7e1aa6b303bf87f`，参考设计不等同于 G9N9N 量产固件。
-- [7] [本项目输入法实测配置](behavior.md)：语音唤起与 Codex／微信输入法使用边界。
+- [7] [本项目输入法实测配置](behavior.md)：语音唤起与 ChatGPT／微信输入法使用边界。

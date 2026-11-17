@@ -142,7 +142,7 @@ final class XiaomiRC001Tests: XCTestCase {
         model.setGlobalInput(nil, at: 1)
         model.setGlobalInput(.home)
         let rc001ProfileID = try XCTUnwrap(model.selectedProfileID)
-        XCTAssertTrue(model.bindProfile(rc001ProfileID, to: "codex"))
+        XCTAssertTrue(model.bindProfile(rc001ProfileID, to: "chatgpt"))
         model.voiceMode = .tap
         XCTAssertEqual(model.voiceMode, .hold)
 
@@ -150,7 +150,7 @@ final class XiaomiRC001Tests: XCTestCase {
         XCTAssertEqual(restored.remoteProfile, RemoteProfiles.xiaomiRC001)
         XCTAssertEqual(restored.mapping[.buttonA, .double].action, .paste)
         XCTAssertEqual(restored.globalButtons.input, .home)
-        XCTAssertEqual(restored.harnesses.first { $0.id == "codex" }?.profileID, rc001ProfileID)
+        XCTAssertEqual(restored.harnesses.first { $0.id == "chatgpt" }?.profileID, rc001ProfileID)
         restored.selectRemoteProfile(RemoteProfiles.xiaomiRC003.id)
         XCTAssertEqual(restored.profiles, proProfiles)
         XCTAssertEqual(restored.mapping[.buttonA, .double].action, .copy)

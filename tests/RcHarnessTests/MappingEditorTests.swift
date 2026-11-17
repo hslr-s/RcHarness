@@ -76,7 +76,7 @@ final class MappingEditorTests: XCTestCase {
         model.openButtonEditor(.dpadDown)
         var draft = MappingEditorDraft(model: model)
         draft.mapping[.dpadDown] = ButtonMapping(action: .copy)
-        model.activateHarness("codex")
+        model.activateHarness("chatgpt")
         let original = model.effectiveMapping
         XCTAssertFalse(model.saveMappingEditor(draft))
         XCTAssertEqual(model.effectiveMapping, original)

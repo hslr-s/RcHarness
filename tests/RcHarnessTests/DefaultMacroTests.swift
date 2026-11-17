@@ -7,7 +7,7 @@ final class DefaultMacroTests: XCTestCase {
     private var defaults: UserDefaults!
     private var suiteName: String!
     private var newPresets: [SavedMacro] { DefaultMacros.cursor + DefaultMacros.deepSeek + DefaultMacros.workBuddy + DefaultMacros.openCode }
-    private var allPresets: [SavedMacro] { DefaultMacros.codex + DefaultMacros.claude + newPresets }
+    private var allPresets: [SavedMacro] { DefaultMacros.chatgpt + DefaultMacros.claude + newPresets }
 
     override func setUp() async throws {
         suiteName = "RcHarness.DefaultMacroTests." + UUID().uuidString
@@ -20,19 +20,19 @@ final class DefaultMacroTests: XCTestCase {
 
     func testMappingCardTitlesDistinguishRecentChatsAndPreserveFullNames() throws {
         let model = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
-        let first = try XCTUnwrap(model.macros.first { $0.name == "Codex-转到最近聊天1" })
-        let second = try XCTUnwrap(model.macros.first { $0.name == "Codex-转到最近聊天2" })
+        let first = try XCTUnwrap(model.macros.first { $0.name == "ChatGPT-转到最近聊天1" })
+        let second = try XCTUnwrap(model.macros.first { $0.name == "ChatGPT-转到最近聊天2" })
         XCTAssertEqual(DefaultMacros.cardTitle(for: first), "转到最近聊天1")
         XCTAssertEqual(DefaultMacros.cardTitle(for: second), "转到最近聊天2")
-        XCTAssertEqual(model.mappingTitle(ButtonMapping(action: .macro, referenceID: first.id.uuidString)), "Codex-转到最近聊天1")
+        XCTAssertEqual(model.mappingTitle(ButtonMapping(action: .macro, referenceID: first.id.uuidString)), "ChatGPT-转到最近聊天1")
         XCTAssertEqual(model.macros.first { $0.id == first.id }?.name, first.name)
     }
 
     func testMappingCardTitlesKeepCustomAndRenamedMacroNames() throws {
-        var renamed = try XCTUnwrap(DefaultMacros.codex.first)
-        renamed.name = "Codex-我的自定义动作"
+        var renamed = try XCTUnwrap(DefaultMacros.chatgpt.first)
+        renamed.name = "ChatGPT-我的自定义动作"
         XCTAssertEqual(DefaultMacros.cardTitle(for: renamed), renamed.name)
-        let custom = SavedMacro(name: "Codex-新建会话")
+        let custom = SavedMacro(name: "ChatGPT-新建会话")
         XCTAssertEqual(DefaultMacros.cardTitle(for: custom), custom.name)
         for macro in allPresets {
             XCTAssertFalse(DefaultMacros.cardTitle(for: macro).isEmpty)
@@ -42,7 +42,7 @@ final class DefaultMacroTests: XCTestCase {
     func testFreshInstallProvidesExecutableAppShortcutsAndDefaultScheme() throws {
         let model = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
         XCTAssertEqual(model.macros, allPresets)
-        XCTAssertEqual(model.macros.filter { $0.name.hasPrefix("Codex-") }.count, DefaultMacros.codex.count)
+        XCTAssertEqual(model.macros.filter { $0.name.hasPrefix("ChatGPT-") }.count, DefaultMacros.chatgpt.count)
         XCTAssertEqual(model.macros.filter { $0.name.hasPrefix("Claude-") }.count, DefaultMacros.claude.count)
         XCTAssertEqual(model.macros.filter { $0.name.hasPrefix("Cursor-") }.count, 35)
         XCTAssertEqual(model.macros.filter { $0.name.hasPrefix("DeepSeek-") }.count, 27)
@@ -62,7 +62,7 @@ final class DefaultMacroTests: XCTestCase {
                 XCTAssertNotNil(event.mapping.shortcut)
             }
         }
-        let newChat = try XCTUnwrap(model.macros.first { $0.name == "Codex-新建会话" })
+        let newChat = try XCTUnwrap(model.macros.first { $0.name == "ChatGPT-新建会话" })
         let mapping = try XCTUnwrap(newChat.steps.first?.mapping)
         var events: [CGEvent] = []
         let sender = SystemEventSender(postEvent: { events.append($0) })
@@ -199,7 +199,7 @@ final class DefaultMacroTests: XCTestCase {
         let upgraded = model.macros
         XCTAssertEqual(upgraded.count, newPresets.count)
         XCTAssertEqual(Array(upgraded.prefix(3)), SavedMacro.normalizingNames(in: existing))
-        XCTAssertTrue(Set(upgraded.map(\.id)).isDisjoint(with: Set((DefaultMacros.codex + DefaultMacros.claude).map(\.id))))
+        XCTAssertTrue(Set(upgraded.map(\.id)).isDisjoint(with: Set((DefaultMacros.chatgpt + DefaultMacros.claude).map(\.id))))
         XCTAssertEqual(model.mapping, mapping)
         XCTAssertEqual(defaults.integer(forKey: SettingsKeys.macroPresetsVersion), DefaultMacros.version)
         XCTAssertEqual(RemoteDashboardModel(mapping: .defaults, defaults: defaults).macros, upgraded)
@@ -240,7 +240,7 @@ final class DefaultMacroTests: XCTestCase {
         let upgraded = model.macros
         XCTAssertEqual(upgraded.count, DefaultMacros.openCode.count)
         XCTAssertEqual(Array(upgraded.prefix(2)), SavedMacro.normalizingNames(in: existing))
-        let olderPresets = DefaultMacros.codex + DefaultMacros.claude + DefaultMacros.cursor + DefaultMacros.deepSeek + DefaultMacros.workBuddy
+        let olderPresets = DefaultMacros.chatgpt + DefaultMacros.claude + DefaultMacros.cursor + DefaultMacros.deepSeek + DefaultMacros.workBuddy
         XCTAssertTrue(Set(upgraded.map(\.id)).isDisjoint(with: Set(olderPresets.map(\.id))))
         XCTAssertEqual(model.mapping, mapping)
         XCTAssertEqual(RemoteDashboardModel(mapping: .defaults, defaults: defaults).macros, upgraded)
@@ -260,7 +260,7 @@ final class DefaultMacroTests: XCTestCase {
         XCTAssertEqual(RemoteDashboardModel(mapping: .defaults, defaults: defaults).macros, expected)
     }
 
-    func testVersionTwoUpgradeAndImportAddClaudeWithoutRestoringCodexOrChangingBindings() throws {
+    func testVersionTwoUpgradeAndImportAddClaudeWithoutRestoringChatGPTOrChangingBindings() throws {
         var renamed = DefaultMacros.claude[1]
         renamed.name = "我的 Claude 会话"
         renamed.steps = [MacroStep(mapping: ButtonMapping(action: .paste), delay: 0.8)]
@@ -274,7 +274,7 @@ final class DefaultMacroTests: XCTestCase {
         let upgraded = model.macros
         XCTAssertEqual(upgraded.count, DefaultMacros.claude.count + newPresets.count)
         XCTAssertEqual(Array(upgraded.prefix(2)), SavedMacro.normalizingNames(in: existing))
-        XCTAssertTrue(Set(upgraded.map(\.id)).isDisjoint(with: Set(DefaultMacros.codex.map(\.id))))
+        XCTAssertTrue(Set(upgraded.map(\.id)).isDisjoint(with: Set(DefaultMacros.chatgpt.map(\.id))))
         XCTAssertEqual(model.mapping[.buttonA].referenceID, renamed.id.uuidString)
         XCTAssertEqual(RemoteDashboardModel(mapping: .defaults, defaults: defaults).macros, upgraded)
 
@@ -291,8 +291,8 @@ final class DefaultMacroTests: XCTestCase {
         XCTAssertEqual(RemoteDashboardModel(mapping: .defaults, defaults: defaults).macros, model.macros)
     }
 
-    func testVersionThreeInstallAddsClaudePresetsWhenOnlyCodexPresetsExist() throws {
-        SettingsStorage.save(DefaultMacros.codex, SettingsKeys.Stored.macros, defaults: defaults)
+    func testVersionThreeInstallAddsClaudePresetsWhenOnlyChatGPTPresetsExist() throws {
+        SettingsStorage.save(DefaultMacros.chatgpt, SettingsKeys.Stored.macros, defaults: defaults)
         defaults.set(3, forKey: SettingsKeys.macroPresetsVersion)
 
         let model = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
@@ -303,8 +303,8 @@ final class DefaultMacroTests: XCTestCase {
     }
 
     func testUpgradeAndLegacyImportKeepExistingNamesIDsStepsAndReferences() throws {
-        let sameName = SavedMacro(name: "  codex-新建会话  ", steps: [MacroStep(mapping: ButtonMapping(action: .copy))])
-        var renamed = DefaultMacros.codex[1]
+        let sameName = SavedMacro(name: "  chatgpt-新建会话  ", steps: [MacroStep(mapping: ButtonMapping(action: .copy))])
+        var renamed = DefaultMacros.chatgpt[1]
         renamed.name = "自定义独立会话"
         renamed.steps = [MacroStep(mapping: ButtonMapping(action: .paste), delay: 0.8)]
         let existing = [sameName, renamed, SavedMacro(name: "我的动作")]
@@ -345,7 +345,7 @@ final class DefaultMacroTests: XCTestCase {
     }
 
     func testVersionOneUpgradeAddsRecentChatsWithoutRestoringDeletedOriginalPresets() throws {
-        var edited = DefaultMacros.codex[0]
+        var edited = DefaultMacros.chatgpt[0]
         edited.name = "我的新会话"
         edited.steps = [MacroStep(mapping: ButtonMapping(action: .copy))]
         SettingsStorage.save([edited], SettingsKeys.Stored.macros, defaults: defaults)
@@ -356,7 +356,7 @@ final class DefaultMacroTests: XCTestCase {
         // Number-row key codes are not consecutive (5 precedes 6 in HIToolbox).
         let keyCodes: [Int64] = [0x12, 0x13, 0x14, 0x15, 0x17, 0x16]
         for number in 1...6 {
-            let macro = try XCTUnwrap(model.macros.first { $0.name == "Codex-转到最近聊天\(number)" })
+            let macro = try XCTUnwrap(model.macros.first { $0.name == "ChatGPT-转到最近聊天\(number)" })
             let plan = try MacroExecutionPlan(macro, macros: model.macros)
             XCTAssertEqual(plan.events.count, 1)
             let mapping = try XCTUnwrap(plan.events.first?.mapping)
@@ -369,7 +369,7 @@ final class DefaultMacroTests: XCTestCase {
             XCTAssertEqual(events.map { $0.getIntegerValueField(.keyboardEventKeycode) }, [keyCodes[number - 1], keyCodes[number - 1]])
             XCTAssertEqual(events.first?.flags, [.maskCommand, .maskAlternate])
         }
-        let recentChat = try XCTUnwrap(model.macros.first { $0.name == "Codex-转到最近聊天6" })
+        let recentChat = try XCTUnwrap(model.macros.first { $0.name == "ChatGPT-转到最近聊天6" })
         model.deleteMacro(recentChat.id)
         let restored = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
         XCTAssertEqual(restored.macros, model.macros)
@@ -379,7 +379,7 @@ final class DefaultMacroTests: XCTestCase {
     }
 
     func testVersionOneBackupOnlyAddsMissingRecentChatsAndPreservesBindings() throws {
-        let existing = SavedMacro(name: " codex-转到最近聊天1 ", steps: [MacroStep(mapping: ButtonMapping(action: .paste))])
+        let existing = SavedMacro(name: " chatgpt-转到最近聊天1 ", steps: [MacroStep(mapping: ButtonMapping(action: .paste))])
         var mapping = RemoteMapping.defaults
         mapping[.buttonA] = ButtonMapping(action: .macro, referenceID: existing.id.uuidString)
         let backup = SettingsBackup(mapping: mapping, profiles: [], macros: [existing], phrases: [], macroPresetsVersion: 1)

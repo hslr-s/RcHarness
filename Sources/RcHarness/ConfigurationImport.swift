@@ -63,7 +63,7 @@ struct PreparedConfiguration {
         var harnesses = original.harnesses ?? HarnessConfiguration.defaults
         if !isLegacy {
             harnesses = harnesses.map { harness in
-                var harness = harness.migratingRetiredBuiltIn()
+                var harness = harness.migratingRenamedBuiltIn()
                 harness.profileID = current?.harnessProfileIDs[harness.id]
                 harness.didInitializeDefaultProfile = current?.initializedHarnessIDs.contains(harness.id) ?? false
                 harness.legacyMapping = .defaults

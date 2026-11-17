@@ -504,7 +504,7 @@ final class RemoteDashboardModel: ObservableObject {
         if let profile = profiles.first(where: { $0.id == selectedProfileID }),
            profile.id != SavedKeyProfile.defaultID,
            let harness = profile.builtInHarness
-                ?? harnesses.first(where: { $0.id == "codex" && $0.profileID == profile.id }) {
+                ?? harnesses.first(where: { $0.id == "chatgpt" && $0.profileID == profile.id }) {
             mapping = harness.defaultMapping(macros: macros, remoteProfile: remoteProfile)
         } else {
             mapping = .defaults(for: remoteProfile, macros: macros)
@@ -733,7 +733,7 @@ final class RemoteDashboardModel: ObservableObject {
         harnesses = harnesses.map { harness in
             // Configuration IDs have already been migrated. Migrate the app
             // metadata before looking up bindings and initialization intent.
-            var harness = harness.migratingRetiredBuiltIn()
+            var harness = harness.migratingRenamedBuiltIn()
             harness.profileID = configuration?.harnessProfileIDs[harness.id]
             harness.didInitializeDefaultProfile = configuration?.initializedHarnessIDs.contains(harness.id) ?? false
             harness.legacyMapping = .defaults

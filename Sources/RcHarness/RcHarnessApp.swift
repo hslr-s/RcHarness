@@ -762,7 +762,7 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
         let previewHarnessID: String = {
             guard let flag = CommandLine.arguments.firstIndex(of: "--harness"),
                   CommandLine.arguments.count > flag + 1,
-                  HarnessConfiguration.defaults.contains(where: { $0.id == CommandLine.arguments[flag + 1] }) else { return "codex" }
+                  HarnessConfiguration.defaults.contains(where: { $0.id == CommandLine.arguments[flag + 1] }) else { return "chatgpt" }
             return CommandLine.arguments[flag + 1]
         }()
         func render(_ index: Int) {
@@ -772,7 +772,7 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
                 return
             }
             let applicationSwitcherPreview = index == pages.count + 19
-            let codexPreview = index == pages.count
+            let chatgptPreview = index == pages.count
             let switcherPreview = index == pages.count + 1
             let voiceEditorPreview = index == pages.count + 2
             let profileNamePreview = (pages.count + 3...pages.count + 4).contains(index)
@@ -880,7 +880,7 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
                 dashboardModel.selectedTrigger = .single
                 windowController.window?.makeKeyAndOrderFront(nil)
             } else {
-                if codexPreview {
+                if chatgptPreview {
                     dashboardModel.activateHarness(previewHarnessID)
                     dashboardModel.page = .mapping
                 } else {
@@ -889,7 +889,7 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
                 windowController.window?.makeKeyAndOrderFront(nil)
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [self] in
-                let filename = applicationSwitcherPreview ? "application-switcher-editor" : macroEditorPreview ? "macro-editor" : statisticsMonthsPreview ? "statistics-all-months" : statisticsYearsPreview ? "statistics-all-years" : audioFailurePreview ? "audio-failure-notice" : importFailureDetailsPreview ? "import-failure-details" : importFailurePreview ? "import-failure-notice" : permissionsDestinationPreview ? "permissions-destination" : permissionNoticePreview ? "permission-notice" : deletionUndoPreview ? "deletion-undo" : deletionPreview ? "deletion-confirmation" : configurationImportPreview ? "configuration-import" : rapidDeletePreview ? "rapid-delete-editor" : phrasePreview ? "phrase-picker" : phraseEmptyPreview ? "phrases-empty" : profileNamePreview ? (index == pages.count + 3 ? "profile-create" : "profile-rename") : voiceEditorPreview ? "voice-editor" : switcherPreview ? "harness-switcher" : codexPreview ? "mapping-" + previewHarnessID : pages[index].rawValue
+                let filename = applicationSwitcherPreview ? "application-switcher-editor" : macroEditorPreview ? "macro-editor" : statisticsMonthsPreview ? "statistics-all-months" : statisticsYearsPreview ? "statistics-all-years" : audioFailurePreview ? "audio-failure-notice" : importFailureDetailsPreview ? "import-failure-details" : importFailurePreview ? "import-failure-notice" : permissionsDestinationPreview ? "permissions-destination" : permissionNoticePreview ? "permission-notice" : deletionUndoPreview ? "deletion-undo" : deletionPreview ? "deletion-confirmation" : configurationImportPreview ? "configuration-import" : rapidDeletePreview ? "rapid-delete-editor" : phrasePreview ? "phrase-picker" : phraseEmptyPreview ? "phrases-empty" : profileNamePreview ? (index == pages.count + 3 ? "profile-create" : "profile-rename") : voiceEditorPreview ? "voice-editor" : switcherPreview ? "harness-switcher" : chatgptPreview ? "mapping-" + previewHarnessID : pages[index].rawValue
                 let voiceEditor = voiceEditorPreview || rapidDeletePreview || macroEditorPreview || applicationSwitcherPreview ? NSHostingView(rootView: MappingEditorSheet(model: dashboardModel, actionFilter: .constant(applicationSwitcherPreview ? .system : .all))) : nil
                 voiceEditor?.frame = NSRect(x: 0, y: 0, width: 560, height: macroEditorPreview ? 460 : 560)
                 let isNewProfile = index == pages.count + 3
@@ -962,7 +962,7 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
                             }
                         }
                     }
-                    for tagID in ["codex", "cursor", MacroTag.general.id] {
+                    for tagID in ["chatgpt", "cursor", MacroTag.general.id] {
                         let picker = NSHostingView(rootView: MacroReferencePicker(
                             referenceID: .constant(dashboardModel.macros.first?.id.uuidString), tagIDs: .constant([tagID]), model: dashboardModel)
                             .padding(SettingsStyle.pagePadding)

@@ -32,7 +32,7 @@ extension RemoteMicrophonePlayback {
     func flush() throws {}
 }
 
-/// A dedicated loopback output, never the user's speakers. Codex (or another
+/// A dedicated loopback output, never the user's speakers. ChatGPT (or another
 /// dictation client) records RcHarness's own input as a normal microphone.
 @MainActor
 final class RemoteMicrophoneOutput {

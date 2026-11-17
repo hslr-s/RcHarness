@@ -22,7 +22,7 @@ struct AboutPage: View {
                             .accessibilityLabel("RcHarness 应用图标")
                         VStack(alignment: .leading, spacing: SettingsStyle.Spacing.inline) {
                             Text("RcHarness").font(.system(size: 20, weight: .semibold))
-                            Text("用遥控器操作 Codex、Claude、Cursor 等 AI 对话与编程应用。")
+                            Text("用遥控器操作 ChatGPT、Claude、Cursor 等 AI 对话与编程应用。")
                                 .font(SettingsStyle.Typography.body).foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
                             HStack(spacing: SettingsStyle.Spacing.controls) {

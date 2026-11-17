@@ -9,7 +9,7 @@ final class ProfileNameSheetTests: XCTestCase {
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
         let model = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
-        let profile = try XCTUnwrap(model.profiles.first { $0.name == "Codex 按键方案" })
+        let profile = try XCTUnwrap(model.profiles.first { $0.name == "ChatGPT 按键方案" })
         var draft = ""
         let name = Binding(get: { draft }, set: { draft = $0 })
         // A sheet can retain its content while its binding starts reading the
@@ -20,7 +20,7 @@ final class ProfileNameSheetTests: XCTestCase {
         XCTAssertEqual(sheet.error, "方案名称不能为空")
         XCTAssertFalse(sheet.canConfirm)
         name.wrappedValue = profile.name
-        XCTAssertEqual(sheet.name, "Codex 按键方案")
+        XCTAssertEqual(sheet.name, "ChatGPT 按键方案")
         XCTAssertNil(sheet.error, "A populated rename field must not retain the empty-name error")
         XCTAssertTrue(sheet.canConfirm)
 
@@ -30,11 +30,11 @@ final class ProfileNameSheetTests: XCTestCase {
         name.wrappedValue = "  workbuddy 按键方案  "
         XCTAssertEqual(sheet.error, "已存在同名方案，请使用其他名称")
         XCTAssertFalse(sheet.canConfirm)
-        name.wrappedValue = "  我的 Codex 方案  "
+        name.wrappedValue = "  我的 ChatGPT 方案  "
         XCTAssertNil(sheet.error)
         XCTAssertTrue(sheet.canConfirm)
         XCTAssertTrue(model.renameProfile(profile.id, name: sheet.name))
-        XCTAssertEqual(model.profiles.first { $0.id == profile.id }?.name, "我的 Codex 方案")
+        XCTAssertEqual(model.profiles.first { $0.id == profile.id }?.name, "我的 ChatGPT 方案")
     }
 
     func testNewProfileValidationTracksTypingAndClearing() {
@@ -49,7 +49,7 @@ final class ProfileNameSheetTests: XCTestCase {
                                      onCancel: {}, onConfirm: {})
         XCTAssertNil(sheet.error)
         XCTAssertFalse(sheet.canConfirm)
-        name.wrappedValue = "Codex 按键方案"
+        name.wrappedValue = "ChatGPT 按键方案"
         XCTAssertEqual(sheet.error, "已存在同名方案，请使用其他名称")
         XCTAssertFalse(sheet.canConfirm)
         name.wrappedValue = "新方案"

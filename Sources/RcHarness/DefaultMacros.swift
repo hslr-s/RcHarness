@@ -14,10 +14,10 @@ enum DefaultMacros {
     }
 
     private static let presetNames = Dictionary(uniqueKeysWithValues:
-        (codex + claude + cursor + deepSeek + workBuddy + openCode).map { ($0.id, $0.name) })
+        (chatgpt + claude + cursor + deepSeek + workBuddy + openCode).map { ($0.id, $0.name) })
 
     private static let presetTagIDs = Dictionary(uniqueKeysWithValues:
-        (codex + claude + cursor + deepSeek + workBuddy + openCode).map { ($0.id, $0.tagIDs) })
+        (chatgpt + claude + cursor + deepSeek + workBuddy + openCode).map { ($0.id, $0.tagIDs) })
 
     static func legacyTagIDs(for id: UUID) -> Set<String> {
         presetTagIDs[id] ?? [MacroTag.general.id]
@@ -25,7 +25,7 @@ enum DefaultMacros {
 
     // macOS defaults: https://learn.chatgpt.com/docs/reference/commands
     // IDs stay fixed so importing an older backup can recognize renamed presets.
-    private static let originalCodex: [SavedMacro] = [
+    private static let originalChatGPT: [SavedMacro] = [
         shortcut(1, "新建会话", kVK_ANSI_N, .maskCommand, "⌘N"),
         shortcut(2, "新建独立会话", kVK_ANSI_O, [.maskCommand, .maskAlternate], "⌥⌘O"),
         shortcut(3, "归档会话", kVK_ANSI_A, [.maskCommand, .maskShift], "⇧⌘A"),
@@ -48,7 +48,7 @@ enum DefaultMacros {
         shortcut(20, "切换会话与标签页", kVK_ANSI_B, [.maskCommand, .maskAlternate], "⌥⌘B"),
     ]
 
-    private static let recentCodexChats: [SavedMacro] = [
+    private static let recentChatGPTChats: [SavedMacro] = [
         shortcut(21, "转到最近聊天1", kVK_ANSI_1, [.maskCommand, .maskAlternate], "⌥⌘1"),
         shortcut(22, "转到最近聊天2", kVK_ANSI_2, [.maskCommand, .maskAlternate], "⌥⌘2"),
         shortcut(23, "转到最近聊天3", kVK_ANSI_3, [.maskCommand, .maskAlternate], "⌥⌘3"),
@@ -57,7 +57,7 @@ enum DefaultMacros {
         shortcut(26, "转到最近聊天6", kVK_ANSI_6, [.maskCommand, .maskAlternate], "⌥⌘6"),
     ]
 
-    static let codex = originalCodex + recentCodexChats
+    static let chatgpt = originalChatGPT + recentChatGPTChats
 
     // Claude Code desktop shortcuts: https://code.claude.com/docs/en/desktop#keyboard-shortcuts
     // Keep the ranges expanded into individual actions so they can be bound to
@@ -284,8 +284,8 @@ enum DefaultMacros {
     static func addingMissing(to macros: [SavedMacro], since version: Int) -> [SavedMacro] {
         let ids = Set(macros.map(\.id))
         let names = Set(macros.map { $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() })
-        let candidates = (version < 1 ? originalCodex : [])
-            + (version < 2 ? recentCodexChats : [])
+        let candidates = (version < 1 ? originalChatGPT : [])
+            + (version < 2 ? recentChatGPTChats : [])
             + (version < 4 ? claude : [])
             + (version < 5 ? cursor + deepSeek + workBuddy : [])
             + (version < 6 ? openCode : [])
@@ -312,7 +312,7 @@ enum DefaultMacros {
         shortcut(number, name, key, flags, label, namespace: 11, prefix: "OpenCode-", tagID: "opencode")
     }
 
-    private static func shortcut(_ number: Int, _ name: String, _ key: Int, _ flags: CGEventFlags, _ label: String, namespace: Int = 1, prefix: String = "Codex-", tagID: String = "codex") -> SavedMacro {
+    private static func shortcut(_ number: Int, _ name: String, _ key: Int, _ flags: CGEventFlags, _ label: String, namespace: Int = 1, prefix: String = "ChatGPT-", tagID: String = "chatgpt") -> SavedMacro {
         let suffix = String(format: "%012d", number)
         let id = UUID(uuidString: String(format: "C0DE%04d-0000-0000-0000-", namespace) + suffix)!
         let stepID = UUID(uuidString: String(format: "C0DE%04d-0000-0000-0000-", namespace + 1) + suffix)!

@@ -53,7 +53,7 @@ final class HarnessDefaultProfilesTests: XCTestCase {
         for remote in RemoteProfiles.all {
             var customMapping = RemoteMapping.defaults
             customMapping[.buttonA] = ButtonMapping(action: .copy)
-            let codex = SavedKeyProfile(name: "我的 Codex", mapping: customMapping)
+            let chatgpt = SavedKeyProfile(name: "我的 ChatGPT", mapping: customMapping)
             let workBuddy = SavedKeyProfile(name: "我的 WorkBuddy", mapping: customMapping)
             let claude = SavedKeyProfile(name: "已有 Claude", mapping: customMapping)
             let conflict = SavedKeyProfile(name: "Cursor 按键方案", mapping: customMapping)
@@ -61,9 +61,9 @@ final class HarnessDefaultProfilesTests: XCTestCase {
             globals.double = ButtonMapping(action: .paste)
             oldConfigurations[remote.id] = RemoteKeyConfiguration(
                 profiles: [SavedKeyProfile(id: SavedKeyProfile.defaultID, name: "默认方案", mapping: customMapping),
-                           codex, workBuddy, claude, conflict],
+                           chatgpt, workBuddy, claude, conflict],
                 harnessProfileIDs: ["workbuddy": workBuddy.id, "claude": claude.id],
-                initializedHarnessIDs: ["codex", "workbuddy"], globalButtons: globals,
+                initializedHarnessIDs: ["chatgpt", "workbuddy"], globalButtons: globals,
                 selectedProfileID: claude.id, selectedHarnessID: "claude")
         }
         var harnesses = HarnessConfiguration.defaults
@@ -83,7 +83,7 @@ final class HarnessDefaultProfilesTests: XCTestCase {
             XCTAssertEqual(model.selectedHarnessID, old.selectedHarnessID)
             XCTAssertEqual(model.mapping[.buttonA].action, .copy)
             XCTAssertEqual(model.globalButtons, old.globalButtons.normalized(for: remote))
-            XCTAssertNil(model.harnesses.first { $0.id == "codex" }?.profileID)
+            XCTAssertNil(model.harnesses.first { $0.id == "chatgpt" }?.profileID)
             XCTAssertEqual(model.harnesses.first { $0.id == "claude" }?.profileID, old.harnessProfileIDs["claude"])
             XCTAssertEqual(model.harnesses.first { $0.id == "workbuddy" }?.profileID, old.harnessProfileIDs["workbuddy"])
             XCTAssertEqual(model.harnesses.first { $0.id == "cursor" }?.isEnabled, false)

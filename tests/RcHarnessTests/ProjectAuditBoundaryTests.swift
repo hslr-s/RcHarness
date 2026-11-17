@@ -30,11 +30,11 @@ final class ProjectAuditBoundaryTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suite) }
         let model = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
         defaults.configurationWrites = 0
-        model.activateHarness("codex")
+        model.activateHarness("chatgpt")
         XCTAssertEqual(defaults.configurationWrites, 1)
         let snapshot = try XCTUnwrap(SettingsStorage.load([String: RemoteKeyConfiguration].self,
             SettingsKeys.Stored.remoteKeyConfigurations, defaults: defaults)?[model.remoteProfile.id])
-        XCTAssertEqual(snapshot.selectedHarnessID, "codex")
+        XCTAssertEqual(snapshot.selectedHarnessID, "chatgpt")
         XCTAssertEqual(snapshot.selectedProfileID, model.selectedProfileID)
         for _ in 0..<100 { model.matchApplication(nil, bundleIdentifier: "com.openai.codex") }
         XCTAssertEqual(defaults.configurationWrites, 1)
@@ -56,16 +56,16 @@ final class ProjectAuditBoundaryTests: XCTestCase {
         sender.send(ButtonMapping(action: .enter), pressed: false)
     }
 
-    func testRetiredHarnessMigrationPreservesIntentionalUnbinding() throws {
+    func testRenamedHarnessMigrationPreservesIntentionalUnbinding() throws {
         let suite = "RcHarness.ProjectAudit." + UUID().uuidString
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
         let model = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
-        var retired = HarnessConfiguration(id: "antigravity", name: "Antigravity")
-        retired.didInitializeDefaultProfile = true
-        let backup = SettingsBackup(version: 3, mapping: .defaults, profiles: [], macros: [], phrases: [], harnesses: [retired])
+        var legacy = HarnessConfiguration(id: "codex", name: "Codex")
+        legacy.didInitializeDefaultProfile = true
+        let backup = SettingsBackup(version: 3, mapping: .defaults, profiles: [], macros: [], phrases: [], harnesses: [legacy])
         try model.applyConfiguration(backup)
-        XCTAssertNil(model.harnesses.first { $0.id == "deepseek" }?.profileID,
+        XCTAssertNil(model.harnesses.first { $0.id == "chatgpt" }?.profileID,
                      "A migrated app must preserve a user's previous unbinding")
     }
 
