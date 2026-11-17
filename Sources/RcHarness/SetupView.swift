@@ -130,16 +130,24 @@ struct SetupView: View {
         GeometryReader { geometry in
             let column = geometry.size.width / CGFloat(SetupStep.allCases.count)
             ForEach(0..<(SetupStep.allCases.count - 1), id: \.self) { index in
-                Path { path in
-                    path.move(to: CGPoint(x: column * (CGFloat(index) + 0.5) + 22, y: 14))
-                    path.addLine(to: CGPoint(x: column * (CGFloat(index) + 1.5) - 22, y: 14))
-                }
-                .stroke(index < setup.step.index ? Color.accentColor : Color.primary.opacity(0.12),
-                        style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                stepConnection(at: index, columnWidth: column)
             }
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+    }
+
+    private func stepConnection(at index: Int, columnWidth: CGFloat) -> some View {
+        let startCenter: CGFloat = CGFloat(index) + 0.5
+        let endCenter: CGFloat = CGFloat(index) + 1.5
+        let startX: CGFloat = columnWidth * startCenter + 22
+        let endX: CGFloat = columnWidth * endCenter - 22
+        let color: Color = index < setup.step.index ? .accentColor : .primary.opacity(0.12)
+        return Path { path in
+            path.move(to: CGPoint(x: startX, y: 14))
+            path.addLine(to: CGPoint(x: endX, y: 14))
+        }
+        .stroke(color, style: StrokeStyle(lineWidth: 2, lineCap: .round))
     }
 
     private var footer: some View {
