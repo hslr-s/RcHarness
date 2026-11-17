@@ -47,7 +47,7 @@ final class AppUpdateTests: XCTestCase {
         try XCTUnwrap(SUAppcastItem(dictionary: [
             "sparkle:version": build,
             "sparkle:shortVersionString": version,
-            "enclosure": ["url": "https://example.com/RcHarness-\(version).zip"],
+            "enclosure": ["url": "https://example.com/RcHarness-\(version).dmg"],
         ]))
     }
 

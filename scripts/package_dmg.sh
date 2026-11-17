@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP="${1:?signed and notarized .app path required}"
+APP="${1:?signed .app path required}"
 OUTPUT="${2:?output .dmg path required}"
 VOLUME_NAME="${3:-RcHarness}"
 

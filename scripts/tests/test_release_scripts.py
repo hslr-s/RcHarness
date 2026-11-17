@@ -1,5 +1,6 @@
 """Exercise architecture isolation with real Mach-O files and release metadata."""
 import base64
+import json
 import os
 import plistlib
 import shutil
@@ -85,6 +86,70 @@ class ArchitectureTests(unittest.TestCase):
 
 
 class DMGPackagingTests(unittest.TestCase):
+    def test_application_notarization_submits_signed_dmg_and_rejects_failure(self):
+        repository = Path(__file__).resolve().parents[2]
+        workflow = (repository / ".github/workflows/release.yml").read_text()
+        step = workflow.split("      - name: Notarize application and HAL driver\n", 1)[1]
+        commands = textwrap.dedent(step.split("        run: |\n", 1)[1].split("\n      - name:", 1)[0])
+        with tempfile.TemporaryDirectory() as scratch:
+            root = Path(scratch)
+            app = root / "RcHarness.app"
+            info = app / "Contents/Info.plist"
+            info.parent.mkdir(parents=True)
+            info.write_bytes(plistlib.dumps({"CFBundleIdentifier": "vip.tokenzz.rcharness"}))
+            binaries = root / "bin"
+            binaries.mkdir()
+            # Build and mount real images; replace only signing and the Apple
+            # service so acceptance and rejection need no credentials.
+            tool = binaries / "notarization-tool"
+            tool.write_text(f"#!{sys.executable}\n" + textwrap.dedent('''\
+                import json, os, sys
+                from pathlib import Path
+                name, args = Path(sys.argv[0]).name, sys.argv[1:]
+                root = Path(os.environ["RUNNER_TEMP"])
+                image = root / "notarization.dmg"
+                signed = root / "image-signed"
+                if name == "codesign":
+                    assert Path(args[-1]) == image and image.is_file()
+                    if "--sign" in args:
+                        assert args[args.index("--sign") + 1] == os.environ["RC_HARNESS_SIGNING_IDENTITY"]
+                        assert "--timestamp" in args
+                        signed.touch()
+                    else:
+                        assert "--verify" in args and "--strict" in args and signed.exists()
+                        (root / "image-verified").touch()
+                elif args[:2] == ["notarytool", "submit"]:
+                    assert Path(args[2]) == image and (root / "image-verified").exists()
+                    print(json.dumps({"id": "test-submission", "status": os.environ["NOTARY_STATUS"]}))
+                else:
+                    assert args[:3] == ["notarytool", "log", "test-submission"]
+                    Path(args[-1]).write_text(json.dumps({"issues": []}))
+                '''))
+            tool.chmod(0o755)
+            for name in ("codesign", "xcrun"):
+                (binaries / name).symlink_to(tool.name)
+            for status in ("Accepted", "Invalid"):
+                with self.subTest(status=status):
+                    for marker in ("image-signed", "image-verified", "notarization-log.json"):
+                        (root / marker).unlink(missing_ok=True)
+                    result = subprocess.run(["/bin/bash", "-e", "-o", "pipefail", "-c", commands],
+                        cwd=repository,
+                        env={**os.environ, "PATH": str(binaries) + os.pathsep + os.defpath,
+                             "RUNNER_TEMP": str(root), "APP_PATH": str(app),
+                             "KEYCHAIN_PATH": str(root / "release.keychain-db"),
+                             "RC_HARNESS_SIGNING_IDENTITY": "test-distribution-identity",
+                             "NOTARY_STATUS": status},
+                        capture_output=True, text=True)
+                    self.assertEqual(result.returncode, 0 if status == "Accepted" else 1,
+                                     result.stdout + result.stderr)
+                    self.assertTrue((root / "notarization-log.json").exists())
+                    if status == "Accepted":
+                        self.assertEqual(read_dmg_info(root / "notarization.dmg")["CFBundleIdentifier"],
+                                         "vip.tokenzz.rcharness")
+                    else:
+                        self.assertIn("Notarization was not accepted", result.stdout)
+                    self.assertEqual([path.name for path in root.glob("*.dmg")], ["notarization.dmg"])
+
     def test_release_signs_dmg_before_notarization_and_supplies_assessment_context(self):
         workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/release.yml").read_text()
         step = workflow.split("      - name: Notarize and staple distribution DMG\n", 1)[1]
@@ -129,8 +194,7 @@ class DMGPackagingTests(unittest.TestCase):
             tool.chmod(0o755)
             for name in ("codesign", "xcrun", "jq", "spctl", "hdiutil"):
                 (binaries / name).symlink_to(tool.name)
-            for extension in ("dmg", "zip"):
-                (root / f"RcHarness-v1.2.3-macos-arm64.{extension}").write_bytes(b"release fixture")
+            (root / "RcHarness-v1.2.3-macos-arm64.dmg").write_bytes(b"release fixture")
             result = subprocess.run(["/bin/bash", "-e", "-o", "pipefail", "-c", commands],
                 env={**os.environ, "PATH": str(binaries) + os.pathsep + os.defpath,
                      "RUNNER_TEMP": str(root), "DIST_DIR": str(root), "RELEASE_TAG": "v1.2.3",
@@ -139,7 +203,9 @@ class DMGPackagingTests(unittest.TestCase):
                 capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertTrue((root / "dmg-assessed").exists())
-            self.assertTrue((root / "SHA256SUMS-arm64").exists())
+            checksums = (root / "SHA256SUMS-arm64").read_text().splitlines()
+            self.assertEqual(len(checksums), 1)
+            self.assertEqual(checksums[0].split()[1], "RcHarness-v1.2.3-macos-arm64.dmg")
 
     def test_package_script_keeps_application_bundle(self):
         with tempfile.TemporaryDirectory() as scratch:
@@ -157,6 +223,79 @@ class DMGPackagingTests(unittest.TestCase):
                 str(app), str(dmg), "RcHarness Test",
             ], check=True)
             self.assertEqual(read_dmg_info(dmg)["CFBundleIdentifier"], "vip.tokenzz.rcharness")
+
+
+class ReleasePublicationTests(unittest.TestCase):
+    def test_publication_assets_and_failure_gates(self):
+        workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/release.yml").read_text()
+        step = workflow.split("      - name: Publish GitHub Release\n", 1)[1]
+        commands = textwrap.dedent(step.split("        run: |\n", 1)[1])
+        expected = {"SHA256SUMS", "appcast-arm64.xml", "appcast-x86_64.xml",
+                    "RcHarness-v1.2.3-macos-arm64.dmg", "RcHarness-v1.2.3-macos-x86_64.dmg"}
+        for scenario in ("new", "draft", "published", "unexpected-assets", "upload-failure"):
+            with self.subTest(scenario=scenario), tempfile.TemporaryDirectory() as scratch:
+                root = Path(scratch)
+                dist = root / "dist"
+                dist.mkdir()
+                for name in expected:
+                    (dist / name).write_text("release fixture")
+                state = None if scenario == "new" else {
+                    "isDraft": scenario != "published",
+                    "assets": [{"name": "unexpected.txt" if scenario == "unexpected-assets" else "SHA256SUMS"}],
+                }
+                (root / "state.json").write_text(json.dumps(state))
+                binaries = root / "bin"
+                binaries.mkdir()
+                gh = binaries / "gh"
+                gh.write_text(f"#!{sys.executable}\n" + textwrap.dedent('''\
+                    import json, os, sys
+                    from pathlib import Path
+                    root = Path(os.environ["RUNNER_TEMP"])
+                    args = sys.argv[1:]
+                    assert args[0] == "release" and args[2] == "v1.2.3"
+                    action = args[1]
+                    with (root / "calls.jsonl").open("a") as calls:
+                        calls.write(json.dumps(args) + "\\n")
+                    state_path = root / "state.json"
+                    state = json.loads(state_path.read_text())
+                    scenario = os.environ["SCENARIO"]
+                    if action == "view":
+                        if state is None:
+                            sys.exit(1)
+                        print(json.dumps(state))
+                    elif action in ("create", "upload"):
+                        if scenario == "upload-failure":
+                            sys.exit(1)
+                        if action == "create":
+                            assert state is None and "--draft" in args
+                            state = {"isDraft": True, "assets": []}
+                        assert state["isDraft"]
+                        names = {item["name"] for item in state["assets"]}
+                        names.update(Path(arg).name for arg in args[3:] if Path(arg).is_file())
+                        state["assets"] = [{"name": name} for name in sorted(names)]
+                    else:
+                        assert action == "edit" and "--draft=false" in args and state["isDraft"]
+                        state["isDraft"] = False
+                    state_path.write_text(json.dumps(state))
+                    '''))
+                gh.chmod(0o755)
+                result = subprocess.run(["/bin/bash", "-e", "-o", "pipefail", "-c", commands],
+                    env={**os.environ, "PATH": str(binaries) + os.pathsep + os.defpath,
+                         "RUNNER_TEMP": str(root), "DIST_DIR": str(dist), "RELEASE_TAG": "v1.2.3",
+                         "SCENARIO": scenario}, capture_output=True, text=True)
+                state = json.loads((root / "state.json").read_text())
+                calls = [json.loads(line) for line in (root / "calls.jsonl").read_text().splitlines()]
+                succeeds = scenario in ("new", "draft")
+                self.assertEqual(result.returncode == 0, succeeds, result.stdout + result.stderr)
+                if succeeds:
+                    self.assertFalse(state["isDraft"])
+                    self.assertEqual({item["name"] for item in state["assets"]}, expected)
+                else:
+                    self.assertFalse(any(call[1] == "edit" for call in calls))
+                    if scenario in ("published", "unexpected-assets"):
+                        self.assertEqual([call[1] for call in calls], ["view"])
+                    else:
+                        self.assertTrue(state["isDraft"])
 
 
 class UpdateFeedTests(unittest.TestCase):

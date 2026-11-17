@@ -149,10 +149,15 @@ jobs:
           done
 
       - name: Notarize application and HAL driver
+        env:
+          RC_HARNESS_SIGNING_IDENTITY: ${{ steps.signing.outputs.identity }}
         run: |
-          ditto -c -k --keepParent "$APP_PATH" "$RUNNER_TEMP/notarization.zip"
+          notarization_dmg="$RUNNER_TEMP/notarization.dmg"
+          scripts/package_dmg.sh "$APP_PATH" "$notarization_dmg" "RcHarness Notarization"
+          codesign --force --timestamp --sign "$RC_HARNESS_SIGNING_IDENTITY" "$notarization_dmg"
+          codesign --verify --strict --verbose=4 "$notarization_dmg"
           status=0
-          xcrun notarytool submit "$RUNNER_TEMP/notarization.zip" \
+          xcrun notarytool submit "$notarization_dmg" \
             --keychain-profile rcharness-release --keychain "$KEYCHAIN_PATH" \
             --wait --timeout 45m --output-format json > "$RUNNER_TEMP/notarization.json" || status=$?
           cat "$RUNNER_TEMP/notarization.json"
@@ -176,7 +181,6 @@ jobs:
           codesign --verify --deep --strict "$APP_PATH"
           spctl --assess --type execute --verbose=4 "$APP_PATH"
           mkdir -p "$DIST_DIR"
-          ditto -c -k --keepParent "$APP_PATH" "$DIST_DIR/RcHarness-$RELEASE_TAG-macos-$RC_HARNESS_ARCH.zip"
           scripts/package_dmg.sh "$APP_PATH" \
             "$DIST_DIR/RcHarness-$RELEASE_TAG-macos-$RC_HARNESS_ARCH.dmg" \
             "RcHarness $RELEASE_TAG"
@@ -203,7 +207,6 @@ jobs:
           spctl --assess --type open --context context:primary-signature --verbose=4 "$dmg"
           cd "$DIST_DIR"
           shasum -a 256 \
-            "RcHarness-$RELEASE_TAG-macos-$RC_HARNESS_ARCH.zip" \
             "RcHarness-$RELEASE_TAG-macos-$RC_HARNESS_ARCH.dmg" \
             > "SHA256SUMS-$RC_HARNESS_ARCH"
 
@@ -260,16 +263,19 @@ jobs:
         run: |
           assets=("$DIST_DIR/SHA256SUMS")
           for arch in arm64 x86_64; do
-            zip_archive="RcHarness-$RELEASE_TAG-macos-$arch.zip"
             dmg_archive="RcHarness-$RELEASE_TAG-macos-$arch.dmg"
-            test -s "$DIST_DIR/$zip_archive"
             test -s "$DIST_DIR/$dmg_archive"
             test -s "$DIST_DIR/appcast-$arch.xml"
-            assets+=("$DIST_DIR/$dmg_archive" "$DIST_DIR/$zip_archive" "$DIST_DIR/appcast-$arch.xml")
+            assets+=("$DIST_DIR/$dmg_archive" "$DIST_DIR/appcast-$arch.xml")
           done
-          if gh release view "$RELEASE_TAG" --json isDraft > "$RUNNER_TEMP/existing-release.json" 2>/dev/null; then
+          if gh release view "$RELEASE_TAG" --json isDraft,assets > "$RUNNER_TEMP/existing-release.json" 2>/dev/null; then
             if [[ "$(jq -r '.isDraft' "$RUNNER_TEMP/existing-release.json")" != true ]]; then
               echo '::error::This version is already published. Push a new version tag instead of replacing its assets.'
+              exit 1
+            fi
+            expected_assets="$(printf '%s\n' "${assets[@]##*/}" | jq -R . | jq -s .)"
+            if ! jq -e --argjson expected "$expected_assets" '[.assets[].name] - $expected | length == 0' "$RUNNER_TEMP/existing-release.json" > /dev/null; then
+              echo '::error::The release draft contains unexpected assets. Remove them before retrying.'
               exit 1
             fi
             gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber

@@ -79,7 +79,7 @@ Chromecast 遥控器首次建立配置时默认使用点按语音模式，也可
 
 ## 快速开始
 
-1. 从 [发布页面](https://github.com/tokenzz-vip/RcHarness/releases) 下载对应架构的 DMG：Apple Silicon 选 `RcHarness-v版本号-macos-arm64.dmg`，Intel 选 `RcHarness-v版本号-macos-x86_64.dmg`，打开后将 `RcHarness.app` 拖入“应用程序”。ZIP 仅作为备用下载格式保留。
+1. 从 [发布页面](https://github.com/tokenzz-vip/RcHarness/releases) 下载对应架构的 DMG：Apple Silicon 选 `RcHarness-v版本号-macos-arm64.dmg`，Intel 选 `RcHarness-v版本号-macos-x86_64.dmg`，打开后将 `RcHarness.app` 拖入“应用程序”。
 2. 在 macOS 蓝牙设置中配对遥控器，在 RcHarness 的“连接与语音”页选择对应型号。
 3. 在“设置”页按提示授予蓝牙、输入监控和辅助功能权限。
 4. 在“Harness”页启用或添加应用，在“键位方案”页创建或选择方案并绑定应用，再到“按键映射”页点击卡片配置动作。
@@ -110,7 +110,7 @@ Chromecast 遥控器首次建立配置时默认使用点按语音模式，也可
 
 项目使用 Swift、SwiftUI 和 Swift Package Manager，通过 Sparkle 2 提供应用内更新（SwiftPM 固定版本及校验和）。ARM CI 与发布使用 **Xcode 27.1 / Swift 6.4**，Intel 使用 `macos-15-intel` runner 自带的 Xcode / Swift 工具链，最低运行系统为 macOS 14。
 
-`scripts/build_app.sh` 默认只构建当前进程架构，可通过 `RC_HARNESS_ARCH=arm64` 或 `RC_HARNESS_ARCH=x86_64` 明确指定。主程序、HAL 驱动及 Sparkle 框架和辅助进程均只保留目标架构，打包时逐一检查架构和最低系统版本。CI 分别在 ARM 与 Intel runner 上执行原生测试和构建；发布流程分别签名、公证，待两种架构都成功后统一发布 DMG、备用 ZIP 及各自的更新源。Sparkle 更新源使用 DMG，ZIP 用于备用下载和排障。Intel 真机上的蓝牙、HID 和 HAL 加载仍需端到端验收；Rosetta 测试不能替代硬件验收。
+`scripts/build_app.sh` 默认只构建当前进程架构，可通过 `RC_HARNESS_ARCH=arm64` 或 `RC_HARNESS_ARCH=x86_64` 明确指定。主程序、HAL 驱动及 Sparkle 框架和辅助进程均只保留目标架构，打包时逐一检查架构和最低系统版本。CI 分别在 ARM 与 Intel runner 上执行原生测试和构建；发布流程分别签名、公证，待两种架构都成功后统一发布 DMG 及各自的更新源，安装包仅提供 DMG 格式。Sparkle 更新源使用 DMG。Intel 真机上的蓝牙、HID 和 HAL 加载仍需端到端验收；Rosetta 测试不能替代硬件验收。
 
 本机构建前，将 `RC_HARNESS_LOCAL_SIGNING_IDENTITY` 设置为 `security find-identity -v -p codesigning` 列出的有效 Apple 签名身份，值不能是 `-`。若配置在 `~/.zshrc` 中，非交互构建时通过 `zsh -ic` 加载。
 
