@@ -204,8 +204,11 @@ class DMGPackagingTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertTrue((root / "dmg-assessed").exists())
             checksums = (root / "SHA256SUMS-arm64").read_text().splitlines()
-            self.assertEqual(len(checksums), 1)
-            self.assertEqual(checksums[0].split()[1], "RcHarness-v1.2.3-macos-arm64.dmg")
+            self.assertEqual({line.split()[1] for line in checksums},
+                             {"RcHarness-v1.2.3-macos-arm64.dmg", "RcHarness-macos-arm64.dmg"})
+            self.assertEqual(len({line.split()[0] for line in checksums}), 1)
+            self.assertEqual((root / "RcHarness-macos-arm64.dmg").read_bytes(),
+                             (root / "RcHarness-v1.2.3-macos-arm64.dmg").read_bytes())
 
     def test_package_script_keeps_application_bundle(self):
         with tempfile.TemporaryDirectory() as scratch:
@@ -231,14 +234,20 @@ class ReleasePublicationTests(unittest.TestCase):
         step = workflow.split("      - name: Publish GitHub Release\n", 1)[1]
         commands = textwrap.dedent(step.split("        run: |\n", 1)[1])
         expected = {"SHA256SUMS", "appcast-arm64.xml", "appcast-x86_64.xml",
-                    "RcHarness-v1.2.3-macos-arm64.dmg", "RcHarness-v1.2.3-macos-x86_64.dmg"}
-        for scenario in ("new", "draft", "published", "unexpected-assets", "upload-failure"):
+                    "RcHarness-v1.2.3-macos-arm64.dmg", "RcHarness-v1.2.3-macos-x86_64.dmg",
+                    "RcHarness-macos-arm64.dmg", "RcHarness-macos-x86_64.dmg"}
+        for scenario in ("new", "draft", "published", "unexpected-assets", "upload-failure",
+                         "missing-fixed-dmg", "mismatched-fixed-dmg"):
             with self.subTest(scenario=scenario), tempfile.TemporaryDirectory() as scratch:
                 root = Path(scratch)
                 dist = root / "dist"
                 dist.mkdir()
                 for name in expected:
                     (dist / name).write_text("release fixture")
+                if scenario == "missing-fixed-dmg":
+                    (dist / "RcHarness-macos-x86_64.dmg").unlink()
+                elif scenario == "mismatched-fixed-dmg":
+                    (dist / "RcHarness-macos-x86_64.dmg").write_text("different release")
                 state = None if scenario == "new" else {
                     "isDraft": scenario != "published",
                     "assets": [{"name": "unexpected.txt" if scenario == "unexpected-assets" else "SHA256SUMS"}],
@@ -284,7 +293,8 @@ class ReleasePublicationTests(unittest.TestCase):
                          "RUNNER_TEMP": str(root), "DIST_DIR": str(dist), "RELEASE_TAG": "v1.2.3",
                          "SCENARIO": scenario}, capture_output=True, text=True)
                 state = json.loads((root / "state.json").read_text())
-                calls = [json.loads(line) for line in (root / "calls.jsonl").read_text().splitlines()]
+                call_log = root / "calls.jsonl"
+                calls = [json.loads(line) for line in call_log.read_text().splitlines()] if call_log.exists() else []
                 succeeds = scenario in ("new", "draft")
                 self.assertEqual(result.returncode == 0, succeeds, result.stdout + result.stderr)
                 if succeeds:
@@ -292,7 +302,9 @@ class ReleasePublicationTests(unittest.TestCase):
                     self.assertEqual({item["name"] for item in state["assets"]}, expected)
                 else:
                     self.assertFalse(any(call[1] == "edit" for call in calls))
-                    if scenario in ("published", "unexpected-assets"):
+                    if scenario in ("missing-fixed-dmg", "mismatched-fixed-dmg"):
+                        self.assertEqual(calls, [])
+                    elif scenario in ("published", "unexpected-assets"):
                         self.assertEqual([call[1] for call in calls], ["view"])
                     else:
                         self.assertTrue(state["isDraft"])

@@ -40,11 +40,11 @@ gh secret set SPARKLE_PRIVATE_KEY --repo tokenzz-vip/RcHarness < "$keyfile"
 
 复用已有 Release 草稿时，只允许包含本次预期附件；存在其他附件或上传失败时保持草稿状态。已正式发布的版本仍拒绝覆盖。
 
-发布 workflow 的矩阵分别在 ARM 与 Intel runner 上测试、构建、签名和公证，创建正式 Release 前要求所有签名 secret 就绪。每个架构完成应用公证和 staple 后生成最终 DMG，再使用相同的 Developer ID Application 身份签名 DMG、校验签名、单独公证和 staple，并通过 `spctl --assess --type open --context context:primary-signature` 检查 DMG，最后运行 `scripts/generate_update_feed.sh`。脚本从最终 DMG 读取构建号、展示版本和最低系统版本，生成签名更新源，并校验目标架构、包内更新源、下载地址、DMG 长度、版本及签名；任一步失败不会发布 Release。两个构建都成功后，发布任务合并并验证 SHA256SUMS，将两个 DMG、两个 appcast 和 SHA256SUMS 作为同一 Release 的附件一起发布。
+发布 workflow 的矩阵分别在 ARM 与 Intel runner 上测试、构建、签名和公证，创建正式 Release 前要求所有签名 secret 就绪。每个架构完成应用公证和 staple 后生成最终 DMG，再使用相同的 Developer ID Application 身份签名 DMG、校验签名、单独公证和 staple，并通过 `spctl --assess --type open --context context:primary-signature` 检查 DMG，最后运行 `scripts/generate_update_feed.sh`。脚本从最终 DMG 读取构建号、展示版本和最低系统版本，生成签名更新源，并校验目标架构、包内更新源、下载地址、DMG 长度、版本及签名；任一步失败不会发布 Release。两个构建都成功后，发布任务合并并验证 SHA256SUMS，将两个带版本号 DMG、两个固定名称 DMG、两个 appcast 和 SHA256SUMS 作为同一 Release 的附件一起发布。
 
 `CFBundleVersion` 使用现有 workflow 的 `github.run_number`，必须保持递增，避免重建 workflow 后重置。展示版本遵循 `vMAJOR.MINOR.PATCH` 标签。每次正式发布都必须同时附带两个架构的 appcast，否则对应的 latest 更新入口会失效。每个架构提供独立全量更新，不生成增量包。
 
-发布包分别命名为 `RcHarness-v版本号-macos-arm64.dmg` 和 `RcHarness-v版本号-macos-x86_64.dmg`。最低系统保持 macOS 14。DMG 内的应用都叫 `RcHarness.app`，主程序、HAL 驱动及所有 Sparkle 辅助进程均只含该包的目标架构。DMG 同时包含“应用程序”快捷方式，供首次安装使用。
+发布包保留原有名称 `RcHarness-v版本号-macos-arm64.dmg` 和 `RcHarness-v版本号-macos-x86_64.dmg`，并额外提供固定名称 `RcHarness-macos-arm64.dmg` 和 `RcHarness-macos-x86_64.dmg`。固定名称文件从对应架构完成签名、公证及 staple 的最终 DMG 直接复制，内容与带版本号文件完全一致，四个文件均包含在 SHA256SUMS 中，并在同一 Release 发布。首次下载可使用固定的 [Apple Silicon 下载链接](https://github.com/tokenzz-vip/RcHarness/releases/latest/download/RcHarness-macos-arm64.dmg) 和 [Intel 下载链接](https://github.com/tokenzz-vip/RcHarness/releases/latest/download/RcHarness-macos-x86_64.dmg)，始终指向最新正式版；appcast 中的 DMG 下载地址仍包含具体版本标签，确保更新源与安装包属于同一版本。最低系统保持 macOS 14。DMG 内的应用都叫 `RcHarness.app`，主程序、HAL 驱动及所有 Sparkle 辅助进程均只含该包的目标架构。DMG 同时包含“应用程序”快捷方式，供首次安装使用。
 
 旧版 Universal 应用仍读取 `appcast.xml`，本次拆分后不再发布该公共源。用户需手动下载一次对应架构的包覆盖旧应用，配置保持原位置；后续更新使用各自独立更新源。Apple Silicon 用户应下载 arm64 包；在 Rosetta 下使用 x86_64 包会继续收到 Intel 更新。
 

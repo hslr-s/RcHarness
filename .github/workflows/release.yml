@@ -205,9 +205,11 @@ jobs:
           xcrun stapler validate "$dmg"
           hdiutil verify "$dmg"
           spctl --assess --type open --context context:primary-signature --verbose=4 "$dmg"
+          cp "$dmg" "$DIST_DIR/RcHarness-macos-$RC_HARNESS_ARCH.dmg"
           cd "$DIST_DIR"
           shasum -a 256 \
             "RcHarness-$RELEASE_TAG-macos-$RC_HARNESS_ARCH.dmg" \
+            "RcHarness-macos-$RC_HARNESS_ARCH.dmg" \
             > "SHA256SUMS-$RC_HARNESS_ARCH"
 
       - name: Generate signed update feed
@@ -264,9 +266,12 @@ jobs:
           assets=("$DIST_DIR/SHA256SUMS")
           for arch in arm64 x86_64; do
             dmg_archive="RcHarness-$RELEASE_TAG-macos-$arch.dmg"
+            fixed_dmg="RcHarness-macos-$arch.dmg"
             test -s "$DIST_DIR/$dmg_archive"
+            test -s "$DIST_DIR/$fixed_dmg"
+            cmp "$DIST_DIR/$dmg_archive" "$DIST_DIR/$fixed_dmg"
             test -s "$DIST_DIR/appcast-$arch.xml"
-            assets+=("$DIST_DIR/$dmg_archive" "$DIST_DIR/appcast-$arch.xml")
+            assets+=("$DIST_DIR/$dmg_archive" "$DIST_DIR/$fixed_dmg" "$DIST_DIR/appcast-$arch.xml")
           done
           if gh release view "$RELEASE_TAG" --json isDraft,assets > "$RUNNER_TEMP/existing-release.json" 2>/dev/null; then
             if [[ "$(jq -r '.isDraft' "$RUNNER_TEMP/existing-release.json")" != true ]]; then

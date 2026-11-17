@@ -79,7 +79,7 @@ Chromecast 遥控器首次建立配置时默认使用点按语音模式，也可
 
 ## 快速开始
 
-1. 从 [发布页面](https://github.com/tokenzz-vip/RcHarness/releases) 下载对应架构的 DMG：Apple Silicon 选 `RcHarness-v版本号-macos-arm64.dmg`，Intel 选 `RcHarness-v版本号-macos-x86_64.dmg`，打开后将 `RcHarness.app` 拖入“应用程序”。
+1. 下载对应架构的 DMG：Apple Silicon 选 [RcHarness-macos-arm64.dmg](https://github.com/tokenzz-vip/RcHarness/releases/latest/download/RcHarness-macos-arm64.dmg)，Intel 选 [RcHarness-macos-x86_64.dmg](https://github.com/tokenzz-vip/RcHarness/releases/latest/download/RcHarness-macos-x86_64.dmg)（固定链接始终指向最新正式版），打开后将 `RcHarness.app` 拖入“应用程序”。
 2. 在 macOS 蓝牙设置中配对遥控器，在 RcHarness 的“连接与语音”页选择对应型号。
 3. 在“设置”页按提示授予蓝牙、输入监控和辅助功能权限。
 4. 在“Harness”页启用或添加应用，在“键位方案”页创建或选择方案并绑定应用，再到“按键映射”页点击卡片配置动作。
