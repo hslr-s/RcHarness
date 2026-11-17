@@ -76,7 +76,7 @@ Chromecast 遥控器首次建立配置时默认使用点按语音模式，也可
 
 ## 快速开始
 
-1. 从 [发布页面](https://github.com/tokenzz-vip/RcHarness/releases) 下载对应架构的压缩包：Apple Silicon 选 `macos-arm64.zip`，Intel 选 `macos-x86_64.zip`，解压后将 `RcHarness.app` 移入“应用程序”。
+1. 从 [发布页面](https://github.com/tokenzz-vip/RcHarness/releases) 下载对应架构的 DMG：Apple Silicon 选 `RcHarness-v版本号-macos-arm64.dmg`，Intel 选 `RcHarness-v版本号-macos-x86_64.dmg`，打开后将 `RcHarness.app` 拖入“应用程序”。ZIP 仅作为备用下载格式保留。
 2. 在 macOS 蓝牙设置中配对遥控器，在 RcHarness 的“连接与语音”页选择对应型号。
 3. 在“设置”页按提示授予蓝牙、输入监控和辅助功能权限。
 4. 在“Harness”页启用或添加应用，在“键位方案”页创建或选择方案并绑定应用，再到“按键映射”页点击卡片配置动作。
@@ -99,7 +99,7 @@ Chromecast 遥控器首次建立配置时默认使用点按语音模式，也可
 
 项目使用 Swift、SwiftUI 和 Swift Package Manager，通过 Sparkle 2 提供应用内更新（SwiftPM 固定版本及校验和）。ARM CI 与发布使用 **Xcode 27.1 / Swift 6.4**，Intel 使用 `macos-15-intel` runner 自带的 Xcode / Swift 工具链，最低运行系统为 macOS 14。
 
-`scripts/build_app.sh` 默认只构建当前进程架构，可通过 `RC_HARNESS_ARCH=arm64` 或 `RC_HARNESS_ARCH=x86_64` 明确指定。主程序、HAL 驱动及 Sparkle 框架和辅助进程均只保留目标架构，打包时逐一检查架构和最低系统版本。CI 分别在 ARM 与 Intel runner 上执行原生测试和构建；发布流程分别签名、公证，待两种架构都成功后统一发布两个独立 ZIP 及各自的更新源。Intel 真机上的蓝牙、HID 和 HAL 加载仍需端到端验收；Rosetta 测试不能替代硬件验收。
+`scripts/build_app.sh` 默认只构建当前进程架构，可通过 `RC_HARNESS_ARCH=arm64` 或 `RC_HARNESS_ARCH=x86_64` 明确指定。主程序、HAL 驱动及 Sparkle 框架和辅助进程均只保留目标架构，打包时逐一检查架构和最低系统版本。CI 分别在 ARM 与 Intel runner 上执行原生测试和构建；发布流程分别签名、公证，待两种架构都成功后统一发布 DMG、备用 ZIP 及各自的更新源。Sparkle 更新源使用 DMG，ZIP 用于备用下载和排障。Intel 真机上的蓝牙、HID 和 HAL 加载仍需端到端验收；Rosetta 测试不能替代硬件验收。
 
 本机构建前，将 `RC_HARNESS_LOCAL_SIGNING_IDENTITY` 设置为 `security find-identity -v -p codesigning` 列出的有效 Apple 签名身份，值不能是 `-`。若配置在 `~/.zshrc` 中，非交互构建时通过 `zsh -ic` 加载。
 
@@ -134,7 +134,7 @@ RC_HARNESS_ARCH=x86_64 scripts/build_app.sh .build/apps/x86_64/RcHarness.app
 
 应用升级重启后，若本机已安装的虚拟麦克风组件版本较旧，会自动发起同步更新并请求 macOS 管理员授权；更新会短暂重启系统音频服务。取消或失败时在「连接与语音」重试。未安装组件的用户不会被自动安装。
 
-更新源为 GitHub Releases 最新正式版本的 `appcast-arm64.xml` 或 `appcast-x86_64.xml` 附件，分别对应 Apple Silicon 和 Intel 的独立安装包。旧版 Universal 应用仍使用 `appcast.xml`，切换时需从版本历史手动下载一次对应架构的新版，之后自动沿用该架构更新源。实现及发布维护步骤见 [更新发布说明](docs/app-updates.md)。
+更新源为 GitHub Releases 最新正式版本的 `appcast-arm64.xml` 或 `appcast-x86_64.xml` 附件，分别对应 Apple Silicon 和 Intel 的 DMG 安装包。旧版 Universal 应用仍使用 `appcast.xml`，切换时需从版本历史手动下载一次对应架构的新版，之后自动沿用该架构更新源。实现及发布维护步骤见 [更新发布说明](docs/app-updates.md)。
 
 ## 赞助商
 

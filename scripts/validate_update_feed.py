@@ -1,22 +1,49 @@
-"""Validate generated metadata against the sealed application in its ZIP."""
+"""Validate generated metadata against the sealed application in its DMG."""
 import base64
 import plistlib
+import subprocess
 import sys
 import xml.etree.ElementTree as ET
-import zipfile
 from pathlib import Path
+
+
+def read_dmg_info(archive):
+    """Mount a read-only DMG, read the app metadata, then detach it."""
+    attached = subprocess.run(
+        ["hdiutil", "attach", "-plist", "-nobrowse", "-readonly", str(archive)],
+        check=True,
+        capture_output=True,
+    )
+    mount_point = None
+    device = None
+    try:
+        details = plistlib.loads(attached.stdout)
+        for entity in details.get("system-entities", []):
+            mount_point = entity.get("mount-point")
+            if mount_point:
+                device = entity.get("dev-entry")
+                break
+        if not mount_point:
+            raise ValueError("DMG did not contain a mounted volume")
+        info_path = Path(mount_point) / "RcHarness.app/Contents/Info.plist"
+        if not info_path.is_file():
+            raise ValueError("DMG does not contain RcHarness.app")
+        return plistlib.loads(info_path.read_bytes())
+    finally:
+        target = device or mount_point
+        if target:
+            subprocess.run(["hdiutil", "detach", target, "-quiet"], check=True)
 
 
 def validate(feed, archive, tag, repository, architecture):
     if architecture not in {"arm64", "x86_64"}:
         raise ValueError("Unsupported target architecture")
-    if Path(archive).name != f"RcHarness-{tag}-macos-{architecture}.zip":
+    if Path(archive).name != f"RcHarness-{tag}-macos-{architecture}.dmg":
         raise ValueError("Archive name must match the target architecture")
     if Path(feed).name != f"appcast-{architecture}.xml":
         raise ValueError("Feed name must match the target architecture")
     ns = {"s": "http://www.andymatuschak.org/xml-namespaces/sparkle"}
-    with zipfile.ZipFile(archive) as bundle:
-        info = plistlib.loads(bundle.read("RcHarness.app/Contents/Info.plist"))
+    info = read_dmg_info(archive)
     expected_feed = f"https://github.com/{repository}/releases/latest/download/appcast-{architecture}.xml"
     if info.get("SUFeedURL") != expected_feed:
         raise ValueError("Application update feed does not match the target architecture or repository")

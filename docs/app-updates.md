@@ -1,6 +1,6 @@
 # 应用内更新
 
-RcHarness 使用 SwiftPM 固定的 Sparkle 2.10.1，沿用标准原生更新窗口，支持检查、显示更新、下载、签名校验和重启安装。`AppUpdateModel` 只观察更新器状态及偏好；启动入口在截图模式返回之后，测试使用注入驱动，不联网、不替换真实应用。
+RcHarness 使用 SwiftPM 固定的 Sparkle 2.10.1，沿用标准原生更新窗口，支持检查、显示更新、下载、签名校验和重启安装。首次下载和 Sparkle 应用内更新都使用 DMG；ZIP 作为备用下载格式保留。`AppUpdateModel` 只观察更新器状态及偏好；启动入口在截图模式返回之后，测试使用注入驱动，不联网、不替换真实应用。
 
 更新配置、启动和检查失败的原因写入统一日志，不写入设置页版本信息区，也不追加主面板错误浮层；版本区始终保留上次检查时间。其他功能的操作通知保持不变。
 
@@ -13,9 +13,9 @@ RcHarness 使用 SwiftPM 固定的 Sparkle 2.10.1，沿用标准原生更新窗�
 - Apple Silicon：`https://github.com/tokenzz-vip/RcHarness/releases/latest/download/appcast-arm64.xml`
 - Intel：`https://github.com/tokenzz-vip/RcHarness/releases/latest/download/appcast-x86_64.xml`
 
-源文件中的 URL 为 ARM 默认值；构建 Intel 包时会覆盖。两种架构使用相同公钥，但更新源与 ZIP 完全分开，更新时保持已安装应用的架构。
+源文件中的 URL 为 ARM 默认值；构建 Intel 包时会覆盖。两种架构使用相同公钥，但更新源与 DMG 完全分开，更新时保持已安装应用的架构。
 
-更新 ZIP 和 appcast 都使用 Ed25519 签名，应用在解包前验证更新包，并要求更新源签名。公钥提交在 `SUPublicEDKey` 中；私钥保存在本机登录钥匙串，Sparkle account 为 `vip.tokenzz.rcharness`。不要更换或删除此钥匙串项目；丢失私钥会影响后续更新。Apple Developer ID 签名、公证和 stapling 仍由原发布流程完成。
+更新 DMG 和 appcast 都使用 Ed25519 签名，应用在挂载和安装前验证更新包，并要求更新源签名。公钥提交在 `SUPublicEDKey` 中；私钥保存在本机登录钥匙串，Sparkle account 为 `vip.tokenzz.rcharness`。不要更换或删除此钥匙串项目；丢失私钥会影响后续更新。Apple Developer ID 签名、公证和 stapling 仍由发布流程完成。备用 ZIP 也保持 Apple 签名和公证，便于手动安装和排障。
 
 SwiftPM 二进制制品同时包含框架与签名工具，构建脚本将框架及帮助程序嵌入应用、裁剪为单一目标架构，再使用本次构建身份由内到外签名。无需单独安装 Sparkle。SwiftPM 的 `Package.resolved` 应一并提交。
 
@@ -36,18 +36,18 @@ gh secret set SPARKLE_PRIVATE_KEY --repo tokenzz-vip/RcHarness < "$keyfile"
 
 ## 每次发布
 
-发布 workflow 的矩阵分别在 ARM 与 Intel runner 上测试、构建、签名和公证，创建正式 Release 前要求所有签名 secret 就绪。每个架构完成公证和 staple 后压缩最终 ZIP，再运行 `scripts/generate_update_feed.sh`，从最终包读取构建号、展示版本和最低系统版本，生成签名更新源。脚本校验目标架构、包内更新源、下载地址、ZIP 长度、版本及签名；任一步失败不会发布 Release。两个构建都成功后，发布任务合并并验证 SHA256SUMS，将两个 ZIP、两个 appcast 和 SHA256SUMS 作为同一 Release 的附件一起发布。
+发布 workflow 的矩阵分别在 ARM 与 Intel runner 上测试、构建、签名和公证，创建正式 Release 前要求所有签名 secret 就绪。每个架构完成应用公证和 staple 后生成最终 DMG 与备用 ZIP，再单独公证、staple DMG，最后运行 `scripts/generate_update_feed.sh`。脚本从最终 DMG 读取构建号、展示版本和最低系统版本，生成签名更新源，并校验目标架构、包内更新源、下载地址、DMG 长度、版本及签名；任一步失败不会发布 Release。两个构建都成功后，发布任务合并并验证 SHA256SUMS，将两个 DMG、两个备用 ZIP、两个 appcast 和 SHA256SUMS 作为同一 Release 的附件一起发布。
 
 `CFBundleVersion` 使用现有 workflow 的 `github.run_number`，必须保持递增，避免重建 workflow 后重置。展示版本遵循 `vMAJOR.MINOR.PATCH` 标签。每次正式发布都必须同时附带两个架构的 appcast，否则对应的 latest 更新入口会失效。每个架构提供独立全量更新，不生成增量包。
 
-发布包分别命名为 `RcHarness-v版本号-macos-arm64.zip` 和 `RcHarness-v版本号-macos-x86_64.zip`，最低系统保持 macOS 14。两个 ZIP 内的应用都叫 `RcHarness.app`，主程序、HAL 驱动及所有 Sparkle 辅助进程均只含该包的目标架构。
+发布包分别命名为 `RcHarness-v版本号-macos-arm64.dmg` 和 `RcHarness-v版本号-macos-x86_64.dmg`；备用下载包沿用同名 `.zip` 后缀。最低系统保持 macOS 14。DMG 和 ZIP 内的应用都叫 `RcHarness.app`，主程序、HAL 驱动及所有 Sparkle 辅助进程均只含该包的目标架构。DMG 同时包含“应用程序”快捷方式，供首次安装使用。
 
 旧版 Universal 应用仍读取 `appcast.xml`，本次拆分后不再发布该公共源。用户需手动下载一次对应架构的包覆盖旧应用，配置保持原位置；后续更新使用各自独立更新源。Apple Silicon 用户应下载 arm64 包；在 Rosetta 下使用 x86_64 包会继续收到 Intel 更新。
 
 本地可对专用发布目录运行：
 
 ```bash
-# 每个目录只放对应架构的最终 ZIP。
+# 每个目录至少放对应架构的最终 DMG；ZIP 可作为备用资产一并保留。
 bash scripts/generate_update_feed.sh /path/to/arm64-assets v0.7.1 tokenzz-vip/RcHarness arm64
 bash scripts/generate_update_feed.sh /path/to/x86_64-assets v0.7.1 tokenzz-vip/RcHarness x86_64
 ```
@@ -62,4 +62,4 @@ HAL 组件仍随应用放在 `Contents/PlugIns/RcHarnessMicrophone.driver`。新
 
 ## 验证边界
 
-单元测试覆盖检查门禁、偏好同步、失败重试，以及驱动版本比较。发布脚本校验真实最终 ZIP 和签名更新源；设置页通过 `--render-settings` 检查布局。正式启用前，应使用两个递增构建完成一次真实升级验收：旧版检查到新版、下载、重启后版本变更、配置保留，以及驱动版本递增时的授权和重试。未发布的新版本无法通过线上 latest 地址完成这一验收。
+单元测试覆盖检查门禁、偏好同步、失败重试，以及驱动版本比较。发布脚本校验真实最终 DMG 和签名更新源；设置页通过 `--render-settings` 检查布局。正式启用前，应使用两个递增构建完成一次真实升级验收：旧版检查到新版、下载、重启后版本变更、配置保留，以及驱动版本递增时的授权和重试。未发布的新版本无法通过线上 latest 地址完成这一验收。

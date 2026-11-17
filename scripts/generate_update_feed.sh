@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run only after notarization/stapling and final ZIP packaging. No private key
+# Run only after notarization/stapling and final DMG packaging. No private key
 # is written to disk or passed as a command-line argument.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -8,13 +8,14 @@ TAG="${2:?release tag required}"
 REPO="${3:-tokenzz-vip/RcHarness}"
 ARCH="${4:?target architecture required: arm64 or x86_64}"
 case "$ARCH" in arm64|x86_64) ;; *) echo "Unsupported architecture: $ARCH" >&2; exit 1 ;; esac
-ARCHIVE="$DIST/RcHarness-$TAG-macos-$ARCH.zip"
-FEED="$DIST/appcast-$ARCH.xml"
+ARCHIVE="$DIST/RcHarness-$TAG-macos-$ARCH.dmg"
+FEED_NAME="appcast-$ARCH.xml"
+FEED="$DIST/$FEED_NAME"
 if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
   echo 'Expected a stable vMAJOR.MINOR.PATCH tag.' >&2; exit 1
 fi
 if [[ ! -f "$ARCHIVE" ]]; then
-  echo 'Final release ZIP is missing.' >&2; exit 1
+  echo 'Final release DMG is missing.' >&2; exit 1
 fi
 TOOLS="$ROOT/.build/artifacts/sparkle/Sparkle"
 if [[ ! -x "$TOOLS/bin/generate_appcast" ]]; then
@@ -23,12 +24,19 @@ fi
 ARGS=(--maximum-deltas 0 --maximum-versions 1 \
   --download-url-prefix "https://github.com/$REPO/releases/download/$TAG/" \
   --link "https://github.com/$REPO/releases/tag/$TAG")
+STAGE="$(mktemp -d "${DIST}/.rcharness-appcast.XXXXXX")"
+trap 'rm -rf "$STAGE"' EXIT
+cp "$ARCHIVE" "$STAGE/"
 if [[ -n "${SPARKLE_PRIVATE_KEY:-}" ]]; then
   printf '%s' "$SPARKLE_PRIVATE_KEY" | "$TOOLS/bin/generate_appcast" \
-    --ed-key-file - "${ARGS[@]}" "$DIST"
+    --ed-key-file - "${ARGS[@]}" "$STAGE"
 else
-  "$TOOLS/bin/generate_appcast" --account vip.tokenzz.rcharness "${ARGS[@]}" "$DIST"
+  "$TOOLS/bin/generate_appcast" --account vip.tokenzz.rcharness "${ARGS[@]}" "$STAGE"
 fi
+if [[ ! -f "$STAGE/$FEED_NAME" ]]; then
+  echo 'No architecture-specific appcast was generated.' >&2; exit 1
+fi
+mv "$STAGE/$FEED_NAME" "$FEED"
 if [[ ! -f "$FEED" ]]; then echo 'No architecture-specific appcast was generated.' >&2; exit 1; fi
 if [[ -n "${SPARKLE_PRIVATE_KEY:-}" ]]; then
   printf '%s' "$SPARKLE_PRIVATE_KEY" | "$TOOLS/bin/sign_update" \

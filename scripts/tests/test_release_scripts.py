@@ -7,12 +7,11 @@ import sys
 import tempfile
 import unittest
 import xml.etree.ElementTree as ET
-import zipfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app_architecture import architectures, thin, verify
-from validate_update_feed import validate
+from validate_update_feed import read_dmg_info, validate
 
 
 class ArchitectureTests(unittest.TestCase):
@@ -83,16 +82,39 @@ class ArchitectureTests(unittest.TestCase):
             thin(self.app, "x86_64")
 
 
+class DMGPackagingTests(unittest.TestCase):
+    def test_package_script_keeps_application_bundle(self):
+        with tempfile.TemporaryDirectory() as scratch:
+            root = Path(scratch)
+            app = root / "RcHarness.app"
+            info = app / "Contents/Info.plist"
+            info.parent.mkdir(parents=True)
+            info.write_bytes(plistlib.dumps({
+                "CFBundleIdentifier": "vip.tokenzz.rcharness",
+                "CFBundleShortVersionString": "1.2.3",
+            }))
+            dmg = root / "RcHarness.dmg"
+            subprocess.run([
+                str(Path(__file__).resolve().parents[1] / "package_dmg.sh"),
+                str(app), str(dmg), "RcHarness Test",
+            ], check=True)
+            self.assertEqual(read_dmg_info(dmg)["CFBundleIdentifier"], "vip.tokenzz.rcharness")
+
+
 class UpdateFeedTests(unittest.TestCase):
     def fixture(self, root, arch, bundled_arch=None):
         repository, tag = "tokenzz-vip/RcHarness", "v1.2.3"
-        archive = root / f"RcHarness-{tag}-macos-{arch}.zip"
+        archive = root / f"RcHarness-{tag}-macos-{arch}.dmg"
         feed = root / f"appcast-{arch}.xml"
         info = {"CFBundleVersion": "123", "CFBundleShortVersionString": "1.2.3",
                 "LSMinimumSystemVersion": "14.0",
                 "SUFeedURL": f"https://github.com/{repository}/releases/latest/download/appcast-{bundled_arch or arch}.xml"}
-        with zipfile.ZipFile(archive, "w") as bundle:
-            bundle.writestr("RcHarness.app/Contents/Info.plist", plistlib.dumps(info))
+        stage = root / f"stage-{arch}"
+        app_info = stage / "RcHarness.app/Contents/Info.plist"
+        app_info.parent.mkdir(parents=True)
+        app_info.write_bytes(plistlib.dumps(info))
+        subprocess.run(["hdiutil", "create", "-quiet", "-srcfolder", str(stage),
+                        "-format", "UDZO", "-ov", str(archive)], check=True)
         ns = "http://www.andymatuschak.org/xml-namespaces/sparkle"
         rss = ET.Element("rss")
         item = ET.SubElement(ET.SubElement(rss, "channel"), "item")

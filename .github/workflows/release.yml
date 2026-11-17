@@ -177,8 +177,31 @@ jobs:
           spctl --assess --type execute --verbose=4 "$APP_PATH"
           mkdir -p "$DIST_DIR"
           ditto -c -k --keepParent "$APP_PATH" "$DIST_DIR/RcHarness-$RELEASE_TAG-macos-$RC_HARNESS_ARCH.zip"
+          scripts/package_dmg.sh "$APP_PATH" \
+            "$DIST_DIR/RcHarness-$RELEASE_TAG-macos-$RC_HARNESS_ARCH.dmg" \
+            "RcHarness $RELEASE_TAG"
+
+      - name: Notarize and staple distribution DMG
+        run: |
+          dmg="$DIST_DIR/RcHarness-$RELEASE_TAG-macos-$RC_HARNESS_ARCH.dmg"
+          status=0
+          xcrun notarytool submit "$dmg" \
+            --keychain-profile rcharness-release --keychain "$KEYCHAIN_PATH" \
+            --wait --timeout 45m --output-format json > "$RUNNER_TEMP/dmg-notarization.json" || status=$?
+          cat "$RUNNER_TEMP/dmg-notarization.json"
+          if [[ "$status" -ne 0 ]] || [[ "$(jq -r '.status' "$RUNNER_TEMP/dmg-notarization.json")" != Accepted ]]; then
+            echo '::error::DMG notarization was not accepted.'
+            exit 1
+          fi
+          xcrun stapler staple "$dmg"
+          xcrun stapler validate "$dmg"
+          hdiutil verify "$dmg"
+          spctl --assess --type open --verbose=4 "$dmg"
           cd "$DIST_DIR"
-          shasum -a 256 "RcHarness-$RELEASE_TAG-macos-$RC_HARNESS_ARCH.zip" > "SHA256SUMS-$RC_HARNESS_ARCH"
+          shasum -a 256 \
+            "RcHarness-$RELEASE_TAG-macos-$RC_HARNESS_ARCH.zip" \
+            "RcHarness-$RELEASE_TAG-macos-$RC_HARNESS_ARCH.dmg" \
+            > "SHA256SUMS-$RC_HARNESS_ARCH"
 
       - name: Generate signed update feed
         env:
@@ -233,10 +256,12 @@ jobs:
         run: |
           assets=("$DIST_DIR/SHA256SUMS")
           for arch in arm64 x86_64; do
-            archive="RcHarness-$RELEASE_TAG-macos-$arch.zip"
-            test -s "$DIST_DIR/$archive"
+            zip_archive="RcHarness-$RELEASE_TAG-macos-$arch.zip"
+            dmg_archive="RcHarness-$RELEASE_TAG-macos-$arch.dmg"
+            test -s "$DIST_DIR/$zip_archive"
+            test -s "$DIST_DIR/$dmg_archive"
             test -s "$DIST_DIR/appcast-$arch.xml"
-            assets+=("$DIST_DIR/$archive" "$DIST_DIR/appcast-$arch.xml")
+            assets+=("$DIST_DIR/$dmg_archive" "$DIST_DIR/$zip_archive" "$DIST_DIR/appcast-$arch.xml")
           done
           if gh release view "$RELEASE_TAG" --json isDraft > "$RUNNER_TEMP/existing-release.json" 2>/dev/null; then
             if [[ "$(jq -r '.isDraft' "$RUNNER_TEMP/existing-release.json")" != true ]]; then
