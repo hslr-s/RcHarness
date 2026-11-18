@@ -240,9 +240,22 @@ enum RemoteAction: String, CaseIterable, Codable, Identifiable, Hashable {
     case mouseLeft, mouseRight, pointerUp, pointerDown, pointerLeft, pointerRight
     case scrollUp, scrollDown, volumeUp, volumeDown, recordedShortcut, openApplication, disabled
     case leftCommand, fn, leftOption, rightOption, playPause, mute, phrase, macro
-    case openHarnessSwitcher, openPhrases, showAllWindows, switchApplications, showDesktop
+    case openHarnessSwitcher, openPhrases, showAllWindows, switchApplications, showDesktop, focusChatGPT
 
     static let voiceTriggerActions: [Self] = [.fn, .leftCommand, .rightCommand, .leftOption, .rightOption]
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let value = try container.decode(String.self)
+        // Keep older mappings readable after removing the screenshot action.
+        if value == "screenshot" {
+            self = .disabled
+        } else if let action = Self(rawValue: value) {
+            self = action
+        } else {
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Unknown remote action: \(value)")
+        }
+    }
 
     var id: String { rawValue }
     var label: String {
@@ -287,6 +300,7 @@ enum RemoteAction: String, CaseIterable, Codable, Identifiable, Hashable {
         case .macro: "执行组合动作"
         case .openHarnessSwitcher: "打开运行 Harness 列表"
         case .openPhrases: "唤出常用语"
+        case .focusChatGPT: "打开聚焦ChatGPT"
         }
     }
 }

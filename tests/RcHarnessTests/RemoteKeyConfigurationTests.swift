@@ -15,6 +15,32 @@ final class RemoteKeyConfigurationTests: XCTestCase {
         defaults.removePersistentDomain(forName: suite)
     }
 
+    func testRemovedScreenshotActionDoesNotDiscardSavedRemoteConfigurations() throws {
+        let original = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
+        original.saveProfile(name: "工作")
+        let savedID = try XCTUnwrap(original.selectedProfileID)
+        original.update(ButtonMapping(action: .paste), for: .buttonA, trigger: .single)
+        original.bindProfile(savedID, to: "chatgpt")
+        original.update(ButtonMapping(action: .copy), for: .power, trigger: .double)
+        original.selectRemoteProfile(RemoteProfiles.googleG9N9N.id)
+        original.saveProfile(name: "Google 方案")
+        let expected = original.keyConfigurationsForBackup()
+        let data = try JSONEncoder().encode(expected)
+        let oldJSON = String(decoding: data, as: UTF8.self)
+            .replacingOccurrences(of: "\"action\":\"copy\"", with: "\"action\":\"screenshot\"")
+        XCTAssertNotEqual(oldJSON, String(decoding: data, as: UTF8.self))
+        try SettingsStorage.commitConfigurationValues(
+            [SettingsKeys.Stored.remoteKeyConfigurations: Data(oldJSON.utf8)], recovery: nil, defaults: defaults
+        )
+
+        let restored = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
+        XCTAssertEqual(restored.profiles, expected[RemoteProfiles.googleG9N9N.id]?.profiles)
+        restored.selectRemoteProfile(RemoteProfiles.xiaomiRC003.id)
+        XCTAssertEqual(restored.boundHarnesses(for: savedID).map(\.id), ["chatgpt"])
+        XCTAssertEqual(restored.profiles.first { $0.id == savedID }?.mapping[.buttonA].action, .paste)
+        XCTAssertEqual(restored.effectiveMapping[.power, .double].action, .disabled)
+    }
+
     func testSchemesBindingsAndGlobalsAreIsolatedAndPersistWithoutSwitchingAway() throws {
         let model = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
         model.saveProfile(name: "工作")

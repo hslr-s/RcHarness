@@ -16,6 +16,7 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
         self?.dashboardModel?.outputUID ?? RemoteMicrophoneOutput.deviceUID
     })
     private let sender = SystemEventSender()
+    private let chatGPTComposerFocus = ChatGPTComposerFocus()
     private var renderDefaultsSuite: String?
     private var mapping = RemoteMapping.defaults
     private let gestures = RemoteGestureController()
@@ -548,6 +549,9 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
                 voiceSession.cancel()
                 voice.cancelActiveStream()
             }
+        } else if button.action == .focusChatGPT {
+            guard pressed, mode == .mapping else { return }
+            focusChatGPT()
         } else if button.action == .switchToNativeMode {
             if pressed { setOperationMode(.native) }
         } else if button.action == .phrase {
@@ -559,6 +563,53 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
         } else {
             sender.send(button, pressed: pressed)
         }
+    }
+
+    private func focusChatGPT() {
+        chatGPTComposerFocus.cancel()
+        let harness = dashboardModel?.harnesses.first(where: { $0.id == "chatgpt" })
+            ?? HarnessConfiguration.defaults.first(where: { $0.id == "chatgpt" })
+        let installedURL = harness?.installedApplicationURL
+        let runningApplication = harness.flatMap { configuration in
+            NSWorkspace.shared.runningApplications.first { application in
+                !application.isTerminated
+                    && configuration.matches(applicationPath: application.bundleURL?.path,
+                                             bundleIdentifier: application.bundleIdentifier)
+            }
+        }
+        let processID = runningApplication?.processIdentifier
+        ChatGPTApplicationFocus.perform(installedURL: installedURL, runningProcessID: processID,
+                                        focusRunning: { [weak self] processID in
+            guard let self, self.mode == .mapping else { return }
+            let result = HarnessApplicationActivation.perform(processID: processID, isAvailable: {
+                guard let harness,
+                      let application = NSRunningApplication(processIdentifier: processID),
+                      !application.isTerminated else { return false }
+                return harness.matches(applicationPath: application.bundleURL?.path,
+                                       bundleIdentifier: application.bundleIdentifier)
+            })
+            if case .failed = result {
+                Log.app.error("ChatGPT activation failed pid=\(processID) accessibility_granted=\(AXIsProcessTrusted())")
+            }
+            if result != .unavailable, AXIsProcessTrusted() {
+                self.chatGPTComposerFocus.start(processID: processID)
+            }
+        }, launch: { url, completion in
+            let configuration = NSWorkspace.OpenConfiguration()
+            configuration.activates = true
+            NSWorkspace.shared.openApplication(at: url, configuration: configuration) { application, error in
+                DispatchQueue.main.async {
+                    guard error == nil, let application else {
+                        if let error {
+                            Log.app.error("ChatGPT launch failed error=\(error.localizedDescription, privacy: .public)")
+                        }
+                        completion(nil)
+                        return
+                    }
+                    completion(application.processIdentifier)
+                }
+            }
+        })
     }
 
     private func cancelMacros() {
@@ -597,6 +648,7 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
     private func setOperationMode(_ newMode: ControllerOperationMode) {
         applicationSwitcher.reset()
         guard mode != newMode else { return }
+        chatGPTComposerFocus.cancel()
         harnessSwitcher.model.reset(reason: "mode-changed")
         phrasePicker.model.reset()
         gestures.cancel()

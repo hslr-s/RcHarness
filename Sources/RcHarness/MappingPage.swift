@@ -573,7 +573,7 @@ struct ActionMappingEditor: View {
     @State private var selectedMacroTagIDs: Set<String> = []
     private var actions: [RemoteAction] {
         let basic: [RemoteAction] = [.enter, .backspace, .rapidDelete, .escape, .arrowUp, .arrowDown, .arrowLeft, .arrowRight, .copy, .paste, .browserBack, .browserForward]
-        let system: [RemoteAction] = [.volumeUp, .volumeDown, .mute, .playPause, .showAllWindows]
+        let system: [RemoteAction] = [.volumeUp, .volumeDown, .mute, .playPause, .showAllWindows, .focusChatGPT]
             + (SystemDesktopController.shared.isSupported ? [.showDesktop] : [])
             + [.mouseLeft, .mouseRight, .pointerUp, .pointerDown, .pointerLeft, .pointerRight, .scrollUp, .scrollDown]
             + (parentMacroID == nil ? [.switchToNativeMode, .switchApplications, .openHarnessSwitcher, .openPhrases] : [])

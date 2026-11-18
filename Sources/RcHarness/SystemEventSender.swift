@@ -129,7 +129,8 @@ final class SystemEventSender {
         case .volumeDown: mediaKey(MediaKey.soundDown, pressed: pressed)
         case .mute: mediaKey(MediaKey.mute, pressed: pressed)
         case .playPause: mediaKey(MediaKey.play, pressed: pressed)
-        case .phrase, .macro, .switchToNativeMode, .openHarnessSwitcher, .openPhrases, .switchApplications, .disabled: break
+        case .phrase, .macro, .switchToNativeMode, .openHarnessSwitcher, .openPhrases, .switchApplications,
+             .focusChatGPT, .disabled: break
         }
     }
 
