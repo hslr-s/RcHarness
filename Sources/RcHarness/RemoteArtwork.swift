@@ -21,7 +21,9 @@ struct RemoteArtworkView: View {
     var highlightedInput: ControllerInput? = nil
     var onHoverInput: ((ControllerInput?) -> Void)? = nil
     var onSelectInput: ((ControllerInput) -> Void)? = nil
+    var focusedInput: FocusState<ControllerInput?>.Binding? = nil
     var profile: RemoteProfile = RemoteProfiles.xiaomiRC003
+    @FocusState private var localFocusedInput: ControllerInput?
 
     /// Positions are expressed in the same unit square used by the artwork.
     /// Live press feedback is centred on the corresponding control.
@@ -254,9 +256,12 @@ struct RemoteArtworkView: View {
                         let buttonBounds = outline.boundingRect
                         let shape = outline.offsetBy(dx: -buttonBounds.minX, dy: -buttonBounds.minY)
                         Button { onSelectInput(input) } label: {
-                            shape.fill(.clear).contentShape(shape)
+                            shape.fill(.clear)
+                                .contentShape(shape)
+                                .contentShape(.focusEffect, shape)
                         }
                         .buttonStyle(.plain)
+                        .focused(focusedInput ?? $localFocusedInput, equals: input)
                         .frame(width: buttonBounds.width, height: buttonBounds.height)
                         .position(x: buttonBounds.midX, y: buttonBounds.midY)
                         .help("点击编辑\(input.label)")

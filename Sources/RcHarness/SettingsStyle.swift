@@ -37,12 +37,11 @@ enum SettingsStyle {
         Color(nsColor: NSColor.systemBlue.blended(withFraction: 0.45, of: .systemGray) ?? .systemBlue)
     }
     static let switchOff = Color.primary.opacity(0.16)
-    // Stronger contrast for the actionable cells inside mapping cards.
-    static func mappingTriggerBackground(in colorScheme: ColorScheme, configured: Bool = true) -> Color {
-        Color.primary.opacity(configured ? (colorScheme == .dark ? 0.12 : 0.115) : 0.035)
+    static func phrasePadKeyBackground(in colorScheme: ColorScheme) -> Color {
+        Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.115)
     }
     static func mappingTriggerLabel(in colorScheme: ColorScheme) -> Color {
-        Color(white: colorScheme == .dark ? 0.72 : 112.0 / 255)
+        Color(white: colorScheme == .dark ? 0.72 : 89.0 / 255)
     }
     /// Shared by the window and the SwiftUI root so the two never disagree.
     static let minimumWindowSize = CGSize(width: 1020, height: 772)

@@ -58,8 +58,8 @@ struct MappingPage: View {
                             .buttonStyle(.bordered)
                             .help("重命名当前按键方案")
                     }
-                    Spacer(minLength: 0)
                     ProfileBindingStatus(harnesses: model.selectedProfileID.map { model.boundHarnesses(for: $0) } ?? [])
+                    Spacer(minLength: 0)
                     Button("管理绑定") { model.page = .harness }
                 }
             }
@@ -72,16 +72,28 @@ struct MappingPage: View {
 /// profile controls and the rest of the dashboard.
 @MainActor
 private struct MappingCanvas: View {
+    private struct TriggerFocus: Hashable {
+        let input: ControllerInput
+        let trigger: ButtonTrigger
+    }
+
     @ObservedObject var model: RemoteDashboardModel
     @ObservedObject var live: RemoteLiveStatus
     @Environment(\.colorScheme) private var colorScheme
+    @FocusState private var focusedTrigger: TriggerFocus?
+    @FocusState private var focusedArtworkInput: ControllerInput?
     @State private var hoveredCardInput: ControllerInput?
     @State private var hoveredArtworkInput: ControllerInput?
+
+    private var previewInput: ControllerInput? {
+        if model.editorVisible { return model.selectedInput }
+        return hoveredArtworkInput ?? hoveredCardInput ?? focusedArtworkInput ?? focusedTrigger?.input
+    }
 
     private var emphasizedInputs: Set<ControllerInput> {
         RemoteArtworkView.highlightedInputs(
             pressed: live.pressedInputs,
-            preview: hoveredArtworkInput ?? hoveredCardInput ?? model.selectedInput
+            preview: previewInput
         )
     }
 
@@ -97,7 +109,7 @@ private struct MappingCanvas: View {
                     VStack(spacing: SettingsStyle.Spacing.controls) {
                         LiveRemoteArtwork(
                             live: live,
-                            highlightedInput: hoveredArtworkInput ?? hoveredCardInput ?? model.selectedInput,
+                            highlightedInput: previewInput,
                             onHoverInput: { input in
                                 guard !model.editorVisible else { return }
                                 hoveredArtworkInput = input
@@ -106,6 +118,7 @@ private struct MappingCanvas: View {
                                 clearHover()
                                 model.openButtonEditor(input)
                             },
+                            focusedInput: $focusedArtworkInput,
                             profile: model.remoteProfile
                         )
                             .frame(width: layout.remoteWidth, height: layout.remoteHeight)
@@ -120,11 +133,18 @@ private struct MappingCanvas: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 MappingConnectors(
                     layout: layout,
-                    selectedInputs: emphasizedInputs
+                    emphasizedInputs: emphasizedInputs,
+                    pressedInputs: live.pressedInputs
                 )
             }
         }
         .onDisappear(perform: clearHover)
+        .onChange(of: focusedTrigger) { _, focus in
+            if focus != nil { clearHover() }
+        }
+        .onChange(of: focusedArtworkInput) { _, focus in
+            if focus != nil { clearHover() }
+        }
         .onChange(of: model.editorVisible) { _, visible in
             if visible { clearHover() }
         }
@@ -136,10 +156,17 @@ private struct MappingCanvas: View {
     }
 
     private func mappingCard(_ input: ControllerInput, layout: MappingLayout) -> some View {
-        Group {
+        let pressed = live.pressedInputs.contains(input)
+        let emphasized = emphasizedInputs.contains(input)
+        let shape = RoundedRectangle(cornerRadius: SettingsStyle.controlRadius)
+        let background = emphasized ? Color.accentColor.opacity(pressed ? 0.17 : 0.09) : SettingsStyle.subtle
+        let border = emphasized ? Color.accentColor.opacity(pressed ? 0.82 : 0.5) : Color.primary.opacity(0.07)
+        return Group {
             if input == .options { voiceCard(input, layout: layout) }
             else { mappingButton(input, layout: layout) }
         }
+        .background(background, in: shape)
+        .overlay { shape.strokeBorder(border).allowsHitTesting(false) }
         .onHover { hovering in
             guard !model.editorVisible else { return }
             if hovering { hoveredCardInput = input }
@@ -147,79 +174,97 @@ private struct MappingCanvas: View {
         }
     }
 
-    private func globalButtonBadge(scale: CGFloat) -> some View {
-        Text("全局按键")
-            .font(.system(size: 10 * scale, weight: .medium))
+    private var globalButtonScopeLabel: some View {
+        Text("全局")
+            .font(SettingsStyle.Typography.caption)
             .foregroundStyle(Color.accentColor)
-            .padding(.horizontal, 6).padding(.vertical, 2)
-            .background(Color.accentColor.opacity(0.10), in: Capsule())
+            .accessibilityHidden(true)
     }
 
     private func voiceCard(_ input: ControllerInput, layout: MappingLayout) -> some View {
-        Button {
+        let shortcut = model.mappingTitle(model.effectiveMapping[.options])
+        return Button {
             model.openButtonEditor(input)
         } label: {
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Label(input.label, systemImage: "mic").font(.system(size: max(11, 12 * layout.contentScale), weight: .semibold))
                     Spacer()
-                    globalButtonBadge(scale: layout.contentScale)
+                    globalButtonScopeLabel
                 }
-                Text(model.mappingTitle(model.effectiveMapping[.options])).font(.system(size: max(11, 11 * layout.contentScale))).foregroundStyle(.secondary).lineLimit(1)
+                Text(shortcut).font(.system(size: max(11, 11 * layout.contentScale))).foregroundStyle(.secondary).lineLimit(1)
             }.padding(8 * layout.contentScale).frame(maxWidth: .infinity, alignment: .leading)
                 .frame(height: layout.cardHeight)
-                .background(emphasizedInputs.contains(input) ? Color.accentColor.opacity(0.09) : SettingsStyle.subtle,
-                            in: RoundedRectangle(cornerRadius: SettingsStyle.controlRadius))
-                .overlay {
-                    RoundedRectangle(cornerRadius: SettingsStyle.controlRadius)
-                        .strokeBorder(emphasizedInputs.contains(input) ? Color.accentColor.opacity(0.5) : Color.primary.opacity(0.06))
-                }
-        }.buttonStyle(.plain)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .focused($focusedTrigger, equals: TriggerFocus(input: input, trigger: .single))
+        .accessibilityLabel(input.label)
+        .accessibilityValue(shortcut)
     }
 
     private func mappingButton(_ input: ControllerInput, layout: MappingLayout) -> some View {
-        let selected = emphasizedInputs.contains(input)
-        return VStack(alignment: .leading, spacing: 4 * layout.contentScale) {
+        VStack(alignment: .leading, spacing: 2 * layout.contentScale) {
             HStack(spacing: 6) {
                 Image(systemName: input.symbol)
                 Text(input.label).fontWeight(.semibold)
                 Spacer()
-                if model.isGlobalInput(input) { globalButtonBadge(scale: layout.contentScale) }
+                if model.isGlobalInput(input) { globalButtonScopeLabel }
                 LivePressIndicator(live: model.live, input: input)
-            }.font(.system(size: max(11, 11 * layout.contentScale)))
-            HStack(spacing: 3) {
+            }
+            .font(.system(size: max(11, 11 * layout.contentScale)))
+            .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 0) {
                 ForEach(input.supportedTriggers) { trigger in
                     let mapping = model.effectiveMapping[input, trigger]
                     let configured = mapping.action != .disabled
                     Button {
                         model.openButtonEditor(input, trigger: trigger)
                     } label: {
-                        VStack(spacing: 2) {
-                            Text(trigger.title).foregroundStyle(SettingsStyle.mappingTriggerLabel(in: colorScheme))
-                            Text(cardTitle(mapping))
-                                .fontWeight(configured ? .medium : .regular)
-                                .foregroundStyle(configured ? .primary : .secondary)
-                                .lineLimit(1).truncationMode(.middle)
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text(trigger.title)
+                                .font(.system(size: max(10, 9 * layout.contentScale)))
+                                .foregroundStyle(SettingsStyle.mappingTriggerLabel(in: colorScheme))
+                            Text(configured ? cardTitle(mapping) : "– 未设置")
+                                .font(.system(size: max(11, 11 * layout.contentScale),
+                                              weight: configured ? .semibold : .regular))
+                                .foregroundStyle(configured ? .primary : SettingsStyle.mappingTriggerLabel(in: colorScheme))
+                                .minimumScaleFactor(0.92)
+                            if let detail = cardDetail(mapping.action) {
+                                Text(detail)
+                                    .font(.system(size: max(10, 9 * layout.contentScale),
+                                                  design: mapping.action == .rapidDelete ? .default : .monospaced))
+                                    .foregroundStyle(SettingsStyle.mappingTriggerLabel(in: colorScheme))
+                            }
                         }
-                        .font(.system(size: max(11, 10 * layout.contentScale)))
-                        .frame(maxWidth: .infinity, minHeight: 28 * layout.contentScale)
-                        .padding(.horizontal, 2).padding(.vertical, 2)
-                        .background(SettingsStyle.mappingTriggerBackground(in: colorScheme, configured: configured), in: RoundedRectangle(cornerRadius: 5))
+                        .lineLimit(1)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.leading, 8)
+                        .padding(.trailing, 4)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
-                    .help("\(input.label) · \(trigger.title)：\(model.mappingTitle(model.effectiveMapping[input, trigger]))")
+                    .buttonStyle(MappingTriggerButtonStyle(isConfigured: configured))
+                    .focused($focusedTrigger, equals: TriggerFocus(input: input, trigger: trigger))
+                    .overlay(alignment: .leading) {
+                        if trigger != .single {
+                            Rectangle()
+                                .fill(Color.primary.opacity(0.12))
+                                .frame(width: 1)
+                                .padding(.vertical, 3)
+                                .allowsHitTesting(false)
+                        }
+                    }
+                    .help("\(input.label) · \(trigger.title)：\(model.mappingTitle(mapping))")
                     .accessibilityLabel("\(input.label)\(trigger.title)")
                     .accessibilityValue(model.mappingTitle(mapping))
                 }
             }
         }
         .padding(.horizontal, 8 * layout.contentScale)
-        .padding(.vertical, 4 * layout.contentScale)
+        .padding(.vertical, 3 * layout.contentScale)
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(height: layout.cardHeight)
-        .background(selected ? Color.accentColor.opacity(0.09) : SettingsStyle.subtle, in: RoundedRectangle(cornerRadius: SettingsStyle.controlRadius))
-        .overlay { RoundedRectangle(cornerRadius: SettingsStyle.controlRadius).strokeBorder(selected ? Color.accentColor.opacity(0.5) : Color.primary.opacity(0.07)) }
     }
 
     private func cardTitle(_ mapping: ButtonMapping) -> String {
@@ -227,6 +272,9 @@ private struct MappingCanvas: View {
         case .openHarnessSwitcher: "Harness 列表"
         case .showDesktop: "显示桌面"
         case .switchToNativeMode: "原生模式"
+        case .rapidDelete: "快速删除"
+        case .showAllWindows: "查看所有窗口"
+        case .switchApplications: "切换应用"
         case .macro:
             if let macro = model.macros.first(where: { $0.id.uuidString == mapping.referenceID }) {
                 DefaultMacros.cardTitle(for: macro)
@@ -236,27 +284,70 @@ private struct MappingCanvas: View {
         default: model.mappingTitle(mapping)
         }
     }
+
+    private func cardDetail(_ action: RemoteAction) -> String? {
+        switch action {
+        case .rapidDelete: "按住连续退格"
+        case .showAllWindows: "⌃ ↑"
+        case .switchApplications: "⌘ Tab"
+        default: nil
+        }
+    }
+}
+
+private struct MappingTriggerButtonStyle: ButtonStyle {
+    let isConfigured: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        TriggerButton(configuration: configuration, isConfigured: isConfigured)
+    }
+
+    private struct TriggerButton: View {
+        let configuration: ButtonStyleConfiguration
+        let isConfigured: Bool
+        @Environment(\.colorScheme) private var colorScheme
+        @State private var isHovered = false
+
+        var body: some View {
+            configuration.label
+                .background {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.primary.opacity(backgroundOpacity))
+                        .padding(.horizontal, 2)
+                        .allowsHitTesting(false)
+                }
+                .onHover { isHovered = $0 }
+        }
+
+        private var backgroundOpacity: Double {
+            let base = isConfigured ? (colorScheme == .dark ? 0.10 : 0.08) : 0
+            let interaction = configuration.isPressed ? 0.06 : isHovered ? 0.03 : 0
+            return base + interaction
+        }
+    }
 }
 
 private struct ProfileBindingStatus: View {
     let harnesses: [HarnessConfiguration]
 
     var body: some View {
-        Group {
+        HStack(spacing: SettingsStyle.Spacing.inline) {
             if harnesses.isEmpty {
-                HStack(spacing: 6) {
-                    HarnessIcon(size: 14)
-                        .frame(width: 20, height: 20)
-                        .background(Color(nsColor: .controlBackgroundColor), in: Circle())
-                        .overlay { Circle().stroke(Color.primary.opacity(0.12), lineWidth: 1) }
-                    Text("未绑定 Harness").font(SettingsStyle.Typography.caption)
-                }
-                .foregroundStyle(.secondary)
+                bindingIcon(for: nil)
+                Text("未绑定 Harness").foregroundStyle(.secondary)
             } else {
-                boundIcons
+                ViewThatFits(in: .horizontal) {
+                    boundIcons.fixedSize(horizontal: true, vertical: false)
+                    ScrollView(.horizontal) { boundIcons }
+                        .frame(height: 26)
+                }
+                Text("已绑定")
+                    .fontWeight(.medium)
+                    .fixedSize()
             }
         }
-        .frame(width: MappingLayout.profileBindingStatusWidth, height: 35)
+        .font(SettingsStyle.Typography.body)
+        .frame(width: MappingLayout.profileBindingStatusWidth, height: 35, alignment: .leading)
         .help(statusDescription)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(statusDescription)
@@ -268,32 +359,24 @@ private struct ProfileBindingStatus: View {
 
     private var boundIcons: some View {
         HStack(spacing: -4) {
-            ForEach(Array(harnesses.prefix(5))) { harness in
-                icon(for: harness)
-                    .frame(width: 20, height: 20)
-                    .background(Color(nsColor: .controlBackgroundColor), in: Circle())
-                    .overlay { Circle().stroke(Color.accentColor.opacity(0.32), lineWidth: 1) }
-                    .zIndex(Double(5 - (harnesses.firstIndex(where: { $0.id == harness.id }) ?? 0)))
-            }
-            if harnesses.count > 5 {
-                Text("+\(harnesses.count - 5)")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(Color.accentColor)
-                    .padding(.horizontal, 6).frame(height: 20)
-                    .background(Color.accentColor.opacity(0.10), in: Capsule())
-                    .padding(.leading, 4)
+            ForEach(harnesses) { harness in
+                bindingIcon(for: harness)
             }
         }
     }
 
-    @ViewBuilder
-    private func icon(for harness: HarnessConfiguration) -> some View {
-        if let url = harness.installedApplicationURL {
-            Image(nsImage: NSWorkspace.shared.icon(forFile: url.path))
-                .resizable().scaledToFit().padding(2)
-        } else {
-            HarnessIcon(size: 14).foregroundStyle(Color.accentColor)
+    private func bindingIcon(for harness: HarnessConfiguration?) -> some View {
+        Group {
+            if let url = harness?.installedApplicationURL {
+                Image(nsImage: NSWorkspace.shared.icon(forFile: url.path))
+                    .resizable().scaledToFit().padding(2)
+            } else {
+                HarnessIcon(size: 14).foregroundStyle(harness == nil ? Color.secondary : Color.accentColor)
+            }
         }
+        .frame(width: 20, height: 20)
+        .background(Color(nsColor: .controlBackgroundColor), in: Circle())
+        .overlay { Circle().stroke(Color.primary.opacity(0.12), lineWidth: 1) }
     }
 }
 
@@ -432,8 +515,10 @@ struct MappingEditorSheet: View {
 }
 
 private struct MappingConnectors: View {
+    @Environment(\.colorScheme) private var colorScheme
     let layout: MappingLayout
-    let selectedInputs: Set<ControllerInput>
+    let emphasizedInputs: Set<ControllerInput>
+    let pressedInputs: Set<ControllerInput>
 
     var body: some View {
         Canvas { context, size in
@@ -493,7 +578,8 @@ private struct MappingConnectors: View {
                     x: remoteOrigin.x + marker.x * layout.remoteWidth,
                     y: remoteOrigin.y + marker.y * layout.remoteHeight
                 )
-                let active = selectedInputs.contains(input)
+                let active = emphasizedInputs.contains(input)
+                let lineWidth: CGFloat = pressedInputs.contains(input) ? 2 : (active ? 1.5 : 1)
                 let direction: CGFloat = connection.isLeft ? 1 : -1
                 let edge = CGPoint(
                     x: connection.isLeft ? remoteBounds.minX : remoteBounds.maxX,
@@ -511,8 +597,8 @@ private struct MappingConnectors: View {
                 )
                 context.stroke(
                     guide,
-                    with: .color(active ? Color.accentColor : Color.primary.opacity(0.32)),
-                    style: StrokeStyle(lineWidth: active ? 1.5 : 1, lineCap: .round)
+                    with: .color(active ? Color.accentColor : Color.primary.opacity(colorScheme == .dark ? 0.26 : 0.17)),
+                    style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
                 )
                 var leader = Path()
                 leader.move(to: edge)
@@ -525,15 +611,15 @@ private struct MappingConnectors: View {
                 leader.addLine(to: CGPoint(x: end.x - direction * arrowLength, y: end.y + 2.5))
                 context.stroke(
                     leader,
-                    with: .color(active ? Color.accentColor : .black.opacity(0.46)),
-                    style: StrokeStyle(lineWidth: active ? 1.5 : 1, lineCap: .round, lineJoin: .round)
+                    with: .color(active ? Color.accentColor : .black.opacity(0.25)),
+                    style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round)
                 )
                 var buttonContext = context
                 buttonContext.clip(to: darkControls)
                 buttonContext.stroke(
                     leader,
-                    with: .color(active ? Color.accentColor : .white.opacity(0.72)),
-                    style: StrokeStyle(lineWidth: active ? 1.5 : 1, lineCap: .round, lineJoin: .round)
+                    with: .color(active ? Color.accentColor : .white.opacity(0.45)),
+                    style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round)
                 )
             }
         }.allowsHitTesting(false)

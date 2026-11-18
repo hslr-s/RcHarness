@@ -403,7 +403,7 @@ private struct PhrasePadKeyStyle<S: Shape>: ButtonStyle {
         configuration.label
             .foregroundStyle(.primary)
             .background {
-                shape.fill(SettingsStyle.mappingTriggerBackground(in: colorScheme))
+                shape.fill(SettingsStyle.phrasePadKeyBackground(in: colorScheme))
                     .overlay {
                         shape.fill(Color.primary.opacity(configuration.isPressed || pressed ? 0.10 : hovered ? 0.05 : 0))
                     }

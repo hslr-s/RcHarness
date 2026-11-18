@@ -264,11 +264,12 @@ struct LiveRemoteArtwork: View {
     var highlightedInput: ControllerInput? = nil
     var onHoverInput: ((ControllerInput?) -> Void)? = nil
     var onSelectInput: ((ControllerInput) -> Void)? = nil
+    var focusedInput: FocusState<ControllerInput?>.Binding? = nil
     var profile: RemoteProfile = RemoteProfiles.xiaomiRC003
     var body: some View {
         RemoteArtworkView(
             pressedInputs: live.pressedInputs, connected: true, highlightedInput: highlightedInput,
-            onHoverInput: onHoverInput, onSelectInput: onSelectInput, profile: profile
+            onHoverInput: onHoverInput, onSelectInput: onSelectInput, focusedInput: focusedInput, profile: profile
         )
     }
 }
