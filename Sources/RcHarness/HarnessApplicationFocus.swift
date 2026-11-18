@@ -1,9 +1,9 @@
 import Foundation
 
-/// Decides whether ChatGPT should be focused directly or launched first.
+/// Decides whether a Harness should be focused directly or launched first.
 /// AppKit-specific launch and activation are injected so this decision stays testable.
 @MainActor
-enum ChatGPTApplicationFocus {
+enum HarnessApplicationFocus {
     static func perform(
         installedURL: URL?,
         runningProcessID: Int32?,

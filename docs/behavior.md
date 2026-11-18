@@ -211,7 +211,7 @@ OpenCode 按本机 2.2.7 macOS 桌面版内置注册表配置，并与[官方桌
 
 内置应用包括 ChatGPT、Claude、Cursor、DeepSeek、腾讯 WorkBuddy 和 OpenCode；OpenCode 使用 `ai.opencode.desktop`，升级和导入旧配置时补入并为各遥控器创建独立的「OpenCode 按键方案」，使用上表的 OpenCode 专用默认映射并保留初始化保护；DeepSeek 对应 DeepSeek Harness（Bundle ID 为 `com.deepseek.dsh`）。WorkBuddy 使用 `com.tencent.workbuddy.mac`，兼容旧版 `com.workbuddy.workbuddy`；升级或导入旧配置时自动补入 WorkBuddy，已存在相同应用时不重复添加，保留已有条目的方案绑定、名称和启用状态。首次初始化未绑定的内置 WorkBuddy 时，自动创建并绑定独立的「WorkBuddy 按键方案」，采用上表的 WorkBuddy 专用默认映射；全局按键与固定语音触发继续由全局设置覆盖。同名方案已存在时为新方案添加序号；已有有效绑定不变。初始化状态随配置保存和导出，之后修改、换绑或解绑，重启及导入该备份均不会重新创建或强制绑定；「WorkBuddy 按键方案」在解绑后仍不可删除。
 
-按键动作列表提供「打开聚焦ChatGPT」。ChatGPT 未安装时动作无反应；已安装但未运行时启动并置前；已运行时切换到该应用，窗口已关闭时请求重新打开。RcHarness 使用辅助功能权限把键盘焦点放到当前窗口的会话输入框。启动或恢复窗口时会短暂等待输入框出现，切走后停止重试。
+按键动作列表的「系统与媒体」提供「打开聚焦ChatGPT」「打开聚焦Claude」「打开聚焦Cursor」「打开聚焦DeepSeek」「打开聚焦WorkBuddy」和「打开聚焦OpenCode」。目标应用未安装时动作无反应。已安装但未运行时启动并置前，已运行时切换到该应用，窗口已关闭时请求重新打开。RcHarness 使用辅助功能权限把键盘焦点放到当前窗口的会话输入框。启动或恢复窗口时会短暂等待输入框出现，切走后停止重试。
 
 ChatGPT 的应用识别继续使用实际 Bundle ID `com.openai.codex`。启动和导入旧配置时，将旧 `codex` Harness ID、动作标签及各遥控器的绑定、初始化标记、当前选择迁移到 `chatgpt`，并将方案和组合动作名称中的 Codex 替换为 ChatGPT；保留方案与动作 ID、映射、步骤、应用启用状态和主动解绑状态，不补回已删除的动作。
 

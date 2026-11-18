@@ -232,6 +232,10 @@ enum ControllerInput: String, Hashable, CaseIterable, Codable {
 
 enum ControllerOperationMode: Hashable { case mapping, native }
 
+enum HarnessFocusTarget: String {
+    case chatGPT = "chatgpt", claude, cursor, deepSeek = "deepseek", workBuddy = "workbuddy", openCode = "opencode"
+}
+
 enum RemoteAction: String, CaseIterable, Codable, Identifiable, Hashable {
     case enter, backspace, rapidDelete, escape, arrowUp, arrowDown, arrowLeft, arrowRight
     // Preserve the stored value used by existing mappings and backups.
@@ -241,6 +245,21 @@ enum RemoteAction: String, CaseIterable, Codable, Identifiable, Hashable {
     case scrollUp, scrollDown, volumeUp, volumeDown, recordedShortcut, openApplication, disabled
     case leftCommand, fn, leftOption, rightOption, playPause, mute, phrase, macro
     case openHarnessSwitcher, openPhrases, showAllWindows, switchApplications, showDesktop, focusChatGPT
+    case focusClaude, focusCursor, focusDeepSeek, focusWorkBuddy, focusOpenCode
+
+    static let harnessFocusActions: [Self] = [.focusChatGPT, .focusClaude, .focusCursor, .focusDeepSeek, .focusWorkBuddy, .focusOpenCode]
+
+    var harnessFocusTarget: HarnessFocusTarget? {
+        switch self {
+        case .focusChatGPT: .chatGPT
+        case .focusClaude: .claude
+        case .focusCursor: .cursor
+        case .focusDeepSeek: .deepSeek
+        case .focusWorkBuddy: .workBuddy
+        case .focusOpenCode: .openCode
+        default: nil
+        }
+    }
 
     static let voiceTriggerActions: [Self] = [.fn, .leftCommand, .rightCommand, .leftOption, .rightOption]
 
@@ -301,6 +320,11 @@ enum RemoteAction: String, CaseIterable, Codable, Identifiable, Hashable {
         case .openHarnessSwitcher: "打开运行 Harness 列表"
         case .openPhrases: "唤出常用语"
         case .focusChatGPT: "打开聚焦ChatGPT"
+        case .focusClaude: "打开聚焦Claude"
+        case .focusCursor: "打开聚焦Cursor"
+        case .focusDeepSeek: "打开聚焦DeepSeek"
+        case .focusWorkBuddy: "打开聚焦WorkBuddy"
+        case .focusOpenCode: "打开聚焦OpenCode"
         }
     }
 }
