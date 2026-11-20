@@ -13,6 +13,7 @@ final class RemoteGestureController {
         var longFired = false
         var work: DispatchWorkItem?
         var repeatWork: DispatchWorkItem?
+        var releaseWork: DispatchWorkItem?
         var opensSwitcher: Bool {
             [single, double, long].contains { $0.action == .openHarnessSwitcher }
         }
@@ -41,6 +42,19 @@ final class RemoteGestureController {
     static let longPressDelay = defaultLongPressDelay
     static let rapidDeleteDelay: TimeInterval = 0.35
     static let rapidDeleteInterval: TimeInterval = 0.06
+    /// Pointer movement needs a much tighter cadence than key repeats to feel
+    /// smooth: start after 180ms, then one frame every 16ms (~60fps).
+    static let pointerRepeatDelay: TimeInterval = 0.18
+    static let pointerRepeatInterval: TimeInterval = 0.016
+    /// Remotes emit press-release-press while a key is held. Merge a short gap
+    /// so continuous pointer movement is not interrupted between frames.
+    static let pointerReleaseDebounce: TimeInterval = 0.08
+    static func isPointerMove(_ action: RemoteAction) -> Bool {
+        switch action {
+        case .pointerUp, .pointerDown, .pointerLeft, .pointerRight: return true
+        default: return false
+        }
+    }
     private let schedule: RemoteVoiceSessionController.Scheduler
     private(set) var configuredDoubleTapWindow: TimeInterval = RemoteGestureController.defaultDoubleTapWindow
     private(set) var configuredLongPressDelay: TimeInterval = RemoteGestureController.defaultLongPressDelay
@@ -78,7 +92,15 @@ final class RemoteGestureController {
                     return
                 }
                 old.work?.cancel()
+                old.releaseWork?.cancel()
+                old.releaseWork = nil
                 old.held = true
+                // A pointer session kept alive by release debounce already has
+                // its repeat timer running. Re-arming a long press here would
+                // start a second chain and double the movement speed.
+                if old.immediate, Self.repeats(old.single), Self.isPointerMove(old.single.action) {
+                    return
+                }
                 old.second = true
                 scheduleLongPress(old, input: input)
                 return
@@ -88,7 +110,7 @@ final class RemoteGestureController {
             if session.immediate {
                 if Self.repeats(session.single) {
                     tap(session.single, input: input, trigger: .single, session: session)
-                    scheduleRepeat(session, input: input, mapping: session.single, after: Self.rapidDeleteDelay)
+                    scheduleRepeat(session, input: input, mapping: session.single, after: Self.repeatDelay(for: session.single))
                 } else {
                     onResolved?(input, .single)
                     logResolution(session.single, input: input, trigger: .single, session: session)
@@ -99,10 +121,24 @@ final class RemoteGestureController {
             guard let session = sessions[input], session.held else { return }
             session.held = false
             session.work?.cancel()
-            session.repeatWork?.cancel()
+            if session.immediate, Self.repeats(session.single), Self.isPointerMove(session.single.action) {
+                // Keep the repeat timer alive across a brief release. The timer
+                // skips emitting while released and resumes if the remote
+                // presses again within the debounce window.
+                session.releaseWork?.cancel()
+                session.releaseWork = schedule(Self.pointerReleaseDebounce) { [weak self, weak session] in
+                    guard let self, let session, self.sessions[input] === session, !session.held else { return }
+                    session.repeatWork?.cancel()
+                    self.sessions[input] = nil
+                }
+            } else {
+                session.repeatWork?.cancel()
+            }
             if session.immediate {
                 if !Self.repeats(session.single) { onOutput?(session.single, false, input) }
-                sessions[input] = nil
+                if !(Self.repeats(session.single) && Self.isPointerMove(session.single.action)) {
+                    sessions[input] = nil
+                }
             }
             else if session.longFired { sessions[input] = nil }
             else if session.second { tap(session.double, input: input, trigger: .double, session: session); sessions[input] = nil }
@@ -125,16 +161,24 @@ final class RemoteGestureController {
             session.longFired = true
             self.tap(mapping, input: input, trigger: .long, session: session)
             if Self.repeats(mapping) {
-                self.scheduleRepeat(session, input: input, mapping: mapping, after: Self.rapidDeleteInterval)
+                self.scheduleRepeat(session, input: input, mapping: mapping, after: Self.repeatInterval(for: mapping))
             }
         }
     }
+    private static func repeatDelay(for mapping: ButtonMapping) -> TimeInterval {
+        isPointerMove(mapping.action) ? pointerRepeatDelay : rapidDeleteDelay
+    }
+    private static func repeatInterval(for mapping: ButtonMapping) -> TimeInterval {
+        isPointerMove(mapping.action) ? pointerRepeatInterval : rapidDeleteInterval
+    }
     private func scheduleRepeat(_ session: Session, input: ControllerInput, mapping: ButtonMapping, after delay: TimeInterval) {
         session.repeatWork = schedule(delay) { [weak self, weak session] in
-            guard let self, let session, self.sessions[input] === session, session.held else { return }
-            self.onOutput?(mapping, true, input)
-            self.onOutput?(mapping, false, input)
-            self.scheduleRepeat(session, input: input, mapping: mapping, after: Self.rapidDeleteInterval)
+            guard let self, let session, self.sessions[input] === session else { return }
+            if session.held {
+                self.onOutput?(mapping, true, input)
+                self.onOutput?(mapping, false, input)
+            }
+            self.scheduleRepeat(session, input: input, mapping: mapping, after: Self.repeatInterval(for: mapping))
         }
     }
     func cancel() {
@@ -146,6 +190,7 @@ final class RemoteGestureController {
             }
             session.work?.cancel()
             session.repeatWork?.cancel()
+            session.releaseWork?.cancel()
             if session.immediate && session.held && !Self.repeats(session.single) { onOutput?(session.single, false, input) }
         }
     }
@@ -153,6 +198,7 @@ final class RemoteGestureController {
         guard let session = sessions.removeValue(forKey: input) else { return }
         session.work?.cancel()
         session.repeatWork?.cancel()
+        session.releaseWork?.cancel()
         if session.immediate && session.held && !Self.repeats(session.single) { onOutput?(session.single, false, input) }
     }
     private func tap(_ mapping: ButtonMapping, input: ControllerInput, trigger: ButtonTrigger, session: Session) {

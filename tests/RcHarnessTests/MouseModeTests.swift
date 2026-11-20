@@ -121,11 +121,13 @@ final class MouseModeTests: XCTestCase {
                                        monotonicTime: { now })
         let up = ButtonMapping(action: .pointerUp, repeatWhileHeld: true)
         var expectedY: [CGFloat] = []
-        for step in 0..<10 {
-            expectedY.append(-min(SystemEventSender.pointerMaxStep,
-                                  SystemEventSender.pointerBaseStep + CGFloat(step) * 0.1 * SystemEventSender.pointerAccelerationPerSecond))
+        for frame in 0..<80 {
+            now = 100 + CFTimeInterval(frame) * 0.016
+            let held = max(0, now - 100 - SystemEventSender.pointerHoldDelay)
+            let step = min(SystemEventSender.pointerMaxStep,
+                           SystemEventSender.pointerBaseStep + CGFloat(held) * SystemEventSender.pointerAccelerationPerSecond)
+            expectedY.append(-step)
             sender.send(up, pressed: true)
-            now += 0.1
         }
         now += 1
         sender.send(up, pressed: true)
@@ -137,6 +139,46 @@ final class MouseModeTests: XCTestCase {
             XCTAssertEqual(step.0, step.1, accuracy: 0.001, "step \(index)")
         }
         XCTAssertEqual(positions.last?.x, -SystemEventSender.pointerBaseStep)
+    }
+
+    func testPointerMovePostsRealMouseMovedEventForHover() {
+        var events: [CGEvent] = []
+        let sender = SystemEventSender(cursorLocation: { CGPoint(x: 100, y: 200) },
+                                       postEvent: { events.append($0) },
+                                       monotonicTime: { 0 })
+        sender.send(ButtonMapping(action: .pointerRight), pressed: true)
+        XCTAssertEqual(events.count, 1)
+        XCTAssertEqual(events.first?.type, .mouseMoved)
+        XCTAssertEqual(events.first?.location.x, 110)
+        XCTAssertEqual(events.first?.location.y, 200)
+    }
+
+    func testPointerRepeatSurvivesBriefRemoteAutoRepeatGap() {
+        let clock = TestClock()
+        let gestures = RemoteGestureController(schedule: clock.schedule)
+        var actions: [RemoteAction] = []
+        gestures.onOutput = { mapping, pressed, _ in if pressed { actions.append(mapping.action) } }
+        var fullMapping = RemoteMapping(buttons: [:])
+        fullMapping[.dpadUp] = ButtonMapping(action: .pointerUp, repeatWhileHeld: true)
+        let mapping = fullMapping
+        gestures.handle(.dpadUp, pressed: true, mapping: mapping)
+        clock.advance(0.3)
+        let beforeRelease = actions.count
+        XCTAssertGreaterThan(beforeRelease, 1)
+        gestures.handle(.dpadUp, pressed: false, mapping: mapping)
+        clock.advance(0.05)
+        gestures.handle(.dpadUp, pressed: true, mapping: mapping)
+        clock.advance(0.05)
+        XCTAssertGreaterThan(actions.count, beforeRelease)
+        // One repeat timer only: a 16ms frame must not produce two movements.
+        let afterResume = actions.count
+        clock.advance(0.016)
+        XCTAssertEqual(actions.count - afterResume, 1)
+        gestures.handle(.dpadUp, pressed: false, mapping: mapping)
+        clock.advance(0.1)
+        let afterStop = actions.count
+        clock.advance(0.2)
+        XCTAssertEqual(actions.count, afterStop)
     }
 
     func testDoubleTapToggleNeverFallsBackToTheSingleModalAction() {

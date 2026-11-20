@@ -73,26 +73,44 @@ final class SystemEventSender {
         var lastStepAt: CFTimeInterval
     }
     private var pointerRepeat: PointerRepeat?
-    static let pointerBaseStep: CGFloat = 12
-    static let pointerMaxStep: CGFloat = 60
-    static let pointerAccelerationPerSecond: CGFloat = 60
-    static let pointerRepeatGap: CFTimeInterval = 0.18
+    static let pointerBaseStep: CGFloat = 10
+    static let pointerMaxStep: CGFloat = 80
+    static let pointerAccelerationPerSecond: CGFloat = 20
+    /// Hold longer than this before the step size starts growing, so a quick
+    /// tap is always exactly one base step.
+    static let pointerHoldDelay: CFTimeInterval = 0.18
+    /// A gap above this ends the run (a new press restarts the ramp).
+    static let pointerRepeatGap: CFTimeInterval = 0.08
 
     private var heldModifiers: CGEventFlags {
         heldKeys.keys.reduce(CGEventFlags()) { $0.union(CGEventFlags(rawValue: $1.flags)) }
     }
 
     init(
-        cursorLocation: @escaping () -> CGPoint = { CGEvent(source: nil)?.location ?? .zero },
+        cursorLocation: @escaping () -> CGPoint = {
+            // NSEvent.mouseLocation is Cocoa global (origin bottom-left, y up);
+            // CGEvent uses the primary screen's top-left origin, y down.
+            let cocoa = NSEvent.mouseLocation
+            let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
+            return CGPoint(x: cocoa.x, y: primaryHeight - cocoa.y)
+        },
         postEvent: @escaping (CGEvent) -> Void = { $0.post(tap: .cghidEventTap) },
-        movePointer: @escaping (CGPoint) -> Void = { CGWarpMouseCursorPosition($0) },
+        movePointer: ((CGPoint) -> Void)? = nil,
         openApplication: @escaping (URL) -> Void = { NSWorkspace.shared.open($0) },
         desktopController: any DesktopController = SystemDesktopController.shared,
         monotonicTime: @escaping () -> CFTimeInterval = CFAbsoluteTimeGetCurrent
     ) {
         self.cursorLocation = cursorLocation
         self.postEvent = postEvent
-        self.movePointer = movePointer
+        self.movePointer = movePointer ?? { point in
+            // CGWarpMouseCursorPosition moves the cursor but emits no mouse
+            // event, so apps never update hover state. A real mouseMoved event
+            // keeps hover, tooltips and cursor feedback in sync. Going through
+            // postEvent also keeps all synthesized output observable in tests.
+            guard let event = CGEvent(mouseEventSource: nil, mouseType: .mouseMoved,
+                                      mouseCursorPosition: point, mouseButton: .left) else { return }
+            postEvent(event)
+        }
         self.openApplication = openApplication
         self.desktopController = desktopController
         self.monotonicTime = monotonicTime
@@ -229,7 +247,7 @@ final class SystemEventSender {
         let step: CGFloat
         if let active = pointerRepeat, active.action == action,
            now >= active.lastStepAt, now - active.lastStepAt <= Self.pointerRepeatGap {
-            let held = now - active.startedAt
+            let held = max(0, now - active.startedAt - Self.pointerHoldDelay)
             step = min(Self.pointerMaxStep,
                        Self.pointerBaseStep + CGFloat(held) * Self.pointerAccelerationPerSecond)
             pointerRepeat = PointerRepeat(action: action, startedAt: active.startedAt, lastStepAt: now)
