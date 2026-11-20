@@ -42,6 +42,9 @@ fi
 if [[ -n "${RC_HARNESS_BUILD:-}" ]]; then
   /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${RC_HARNESS_BUILD}" "${APP}/Contents/Info.plist"
 fi
+if [[ -n "${RC_HARNESS_FEEDBACK_URL:-}" ]]; then
+  plutil -insert RcHarnessFeedbackURL -string "${RC_HARNESS_FEEDBACK_URL}" "${APP}/Contents/Info.plist"
+fi
 cp "${ROOT}/assets/brand/RcHarness-v2.icns" "${APP}/Contents/Resources/RcHarness.icns"
 cp "${ROOT}/assets/app/controller-dashboard-xiaomi-rc001.png" "${APP}/Contents/Resources/controller-dashboard-xiaomi-rc001.png"
 cp "${ROOT}/assets/app/controller-dashboard-xiaomi-remote.png" "${APP}/Contents/Resources/controller-dashboard-xiaomi-remote.png"

@@ -1068,6 +1068,20 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
                             try? data.write(to: directory.appendingPathComponent("about-content.png"))
                         }
                     }
+                    let feedback = NSHostingView(rootView: FeedbackSheet(model: dashboardModel,
+                        endpoint: dashboardModel.themeMode == .dark ? AppInfo.website.appending(path: "api/feedback") : nil,
+                        showsDiagnosticsInitially: true)
+                        .preferredColorScheme(dashboardModel.themeMode == .dark ? .dark : .light)
+                        .background(Color(nsColor: .windowBackgroundColor)))
+                    feedback.appearance = NSAppearance(named: dashboardModel.themeMode == .dark ? .darkAqua : .aqua)
+                    feedback.frame.size = feedback.fittingSize
+                    feedback.layoutSubtreeIfNeeded()
+                    if let bitmap = feedback.bitmapImageRepForCachingDisplay(in: feedback.bounds) {
+                        feedback.cacheDisplay(in: feedback.bounds, to: bitmap)
+                        if let data = bitmap.representation(using: .png, properties: [:]) {
+                            try? data.write(to: directory.appendingPathComponent("feedback.png"))
+                        }
+                    }
                 }
                 render(index + 1)
             }

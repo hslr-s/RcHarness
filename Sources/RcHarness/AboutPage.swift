@@ -8,6 +8,7 @@ struct AboutPage: View {
     static let permissionsSectionID = "settings-permissions"
     static let configurationSectionID = "settings-configuration"
     @ObservedObject var model: RemoteDashboardModel
+    @State private var feedbackVisible = false
 
     var body: some View {
         VStack(spacing: SettingsStyle.Spacing.groups) {
@@ -99,9 +100,11 @@ struct AboutPage: View {
                     Spacer()
                     Button("复制诊断信息") { model.copyDiagnostics() }
                     Button("刷新状态") { model.refreshPermissions() }
+                    Button("提交反馈") { feedbackVisible = true }
                 }
             }
         }
+        .sheet(isPresented: $feedbackVisible) { FeedbackSheet(model: model) }
     }
 
 }
