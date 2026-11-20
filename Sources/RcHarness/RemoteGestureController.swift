@@ -48,6 +48,10 @@ final class RemoteGestureController {
     private var operationMode: ControllerOperationMode = .mapping
     // Modal actions need the originating input even after a delayed gesture.
     var onOutput: ((ButtonMapping, Bool, ControllerInput) -> Void)?
+    /// Reports the resolved input and trigger once per gesture, before its
+    /// output. Callers that need to distinguish a double tap from a long press
+    /// use this instead of duplicating the timing logic.
+    var onResolved: ((ControllerInput, ButtonTrigger) -> Void)?
 
     init(schedule: @escaping RemoteVoiceSessionController.Scheduler = RemoteVoiceSessionController.mainQueue) {
         self.schedule = schedule
@@ -86,6 +90,7 @@ final class RemoteGestureController {
                     tap(session.single, input: input, trigger: .single, session: session)
                     scheduleRepeat(session, input: input, mapping: session.single, after: Self.rapidDeleteDelay)
                 } else {
+                    onResolved?(input, .single)
                     logResolution(session.single, input: input, trigger: .single, session: session)
                     onOutput?(session.single, true, input)
                 }
@@ -151,6 +156,7 @@ final class RemoteGestureController {
         if session.immediate && session.held && !Self.repeats(session.single) { onOutput?(session.single, false, input) }
     }
     private func tap(_ mapping: ButtonMapping, input: ControllerInput, trigger: ButtonTrigger, session: Session) {
+        onResolved?(input, trigger)
         logResolution(mapping, input: input, trigger: trigger, session: session)
         onOutput?(mapping, true, input)
         onOutput?(mapping, false, input)

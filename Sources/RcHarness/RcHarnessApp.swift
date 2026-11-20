@@ -44,11 +44,20 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
     }
     private var mode: ControllerOperationMode = .mapping
     private var mouseModeEntryInput: ControllerInput?
+    private var mouseModeEntryTrigger: ButtonTrigger?
+    private var lastResolvedTrigger: ButtonTrigger?
     private lazy var modeNotice = ModeNoticeController()
     /// Mouse mode always uses its own editable profile, regardless of which
-    /// scheme the dashboard currently has selected.
+    /// scheme the dashboard currently has selected. The trigger that entered
+    /// mouse mode is pinned to the exit action, so a double tap cannot be
+    /// consumed as a single tap and accidentally open another modal.
     private var activeMapping: RemoteMapping {
-        mode == .mouse ? (dashboardModel?.effectiveMouseMapping ?? mapping) : mapping
+        guard mode == .mouse else { return mapping }
+        var result = dashboardModel?.effectiveMouseMapping ?? mapping
+        if let input = mouseModeEntryInput, let trigger = mouseModeEntryTrigger {
+            result[input, trigger] = ButtonMapping(action: .switchToMouseMode)
+        }
+        return result
     }
     private var inputPermissionsWereReady = false
     private var statusItem: NSStatusItem!
@@ -129,6 +138,9 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
                 self?.voiceSession.cancel()
                 self?.voice.cancelActiveStream()
             }
+        }
+        gestures.onResolved = { [weak self] input, trigger in
+            self?.lastResolvedTrigger = trigger
         }
         gestures.onOutput = { [weak self] mapping, pressed, input in
             self?.sendAction(mapping, pressed: pressed, input: input)
@@ -465,13 +477,6 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
             _ = harnessSwitcher.model.handle(input, pressed: pressed)
             return
         }
-        // The key used to enter mouse mode is also the only way out. Intercept
-        // its press before gesture resolution so the exit always works, even
-        // if the user has remapped that key inside the mouse profile.
-        if mode == .mouse, pressed, input == mouseModeEntryInput {
-            exitMouseMode()
-            return
-        }
         if voiceStopInputs.contains(input) {
             if !pressed { voiceStopInputs.remove(input) }
             return
@@ -575,10 +580,11 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
             focusHarness(target)
         } else if button.action == .switchToMouseMode {
             guard pressed, let input else { return }
+            let trigger = lastResolvedTrigger
             if mode == .mouse {
-                if input == mouseModeEntryInput { exitMouseMode() }
+                if input == mouseModeEntryInput, trigger == mouseModeEntryTrigger { exitMouseMode() }
             } else {
-                enterMouseMode(from: input)
+                enterMouseMode(from: input, trigger: trigger)
             }
         } else if button.action == .switchToNativeMode {
             guard pressed else { return }
@@ -678,9 +684,10 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
         setOperationMode(mode == .mapping ? .native : .mapping)
     }
 
-    private func enterMouseMode(from input: ControllerInput) {
+    private func enterMouseMode(from input: ControllerInput, trigger: ButtonTrigger?) {
         guard mode != .mouse else { return }
         mouseModeEntryInput = input
+        mouseModeEntryTrigger = trigger
         setOperationMode(.mouse)
         modeNotice.show("进入鼠标模式")
     }
@@ -688,6 +695,7 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
     private func exitMouseMode() {
         guard mode == .mouse else { return }
         mouseModeEntryInput = nil
+        mouseModeEntryTrigger = nil
         setOperationMode(.mapping)
         modeNotice.show("退出鼠标模式")
         // App switches were ignored while mouse mode owned the keymap. Apply

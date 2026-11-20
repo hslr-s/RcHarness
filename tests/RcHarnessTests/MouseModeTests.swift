@@ -139,6 +139,29 @@ final class MouseModeTests: XCTestCase {
         XCTAssertEqual(positions.last?.x, -SystemEventSender.pointerBaseStep)
     }
 
+    func testDoubleTapToggleNeverFallsBackToTheSingleModalAction() {
+        let clock = TestClock()
+        let gestures = RemoteGestureController(schedule: clock.schedule)
+        var resolved: [ButtonTrigger] = []
+        var actions: [RemoteAction] = []
+        gestures.onResolved = { _, trigger in resolved.append(trigger) }
+        gestures.onOutput = { mapping, pressed, _ in if pressed { actions.append(mapping.action) } }
+        var mapping = RemoteMapping(buttons: [:])
+        mapping[.power, .single] = ButtonMapping(action: .openHarnessSwitcher)
+        mapping[.power, .double] = ButtonMapping(action: .switchToMouseMode)
+        mapping[.power, .long] = ButtonMapping(action: .switchToMouseMode)
+
+        for _ in 0..<2 {
+            gestures.handle(.power, pressed: true, mapping: mapping)
+            gestures.handle(.power, pressed: false, mapping: mapping)
+            gestures.handle(.power, pressed: true, mapping: mapping)
+            gestures.handle(.power, pressed: false, mapping: mapping)
+        }
+        XCTAssertEqual(resolved, [.double, .double])
+        XCTAssertEqual(actions, [.switchToMouseMode, .switchToMouseMode])
+        XCTAssertFalse(actions.contains(.openHarnessSwitcher))
+    }
+
     func testSwitchActionIsDecodableAndForbiddenInsideMacros() throws {
         let action = try XCTUnwrap(RemoteAction(rawValue: "toggleMouseMode"))
         XCTAssertEqual(action, .switchToMouseMode)
