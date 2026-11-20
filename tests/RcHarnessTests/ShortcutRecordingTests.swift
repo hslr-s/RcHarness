@@ -103,6 +103,72 @@ final class ShortcutRecordingTests: XCTestCase {
         XCTAssertEqual(captured.count, 1)
     }
 
+    func testModifierOnlyModeCapturesMultipleModifiersOnFullReleaseAndIgnoresOrdinaryKeys() throws {
+        let session = ShortcutRecordingSession(mode: .modifiers)
+        var captured: [RecordedShortcut] = []
+        session.onCapture = { captured.append($0) }
+        session.start()
+        try send(session, .flagsChanged, code: 59, flags: .maskControl)
+        try send(session, .flagsChanged, code: 60, flags: [.maskControl, .maskShift])
+        try send(session, .keyDown, code: 40, flags: [.maskControl, .maskShift])
+        try send(session, .keyUp, code: 40, flags: [.maskControl, .maskShift])
+        XCTAssertTrue(captured.isEmpty)
+        try send(session, .flagsChanged, code: 60, flags: .maskControl)
+        try send(session, .flagsChanged, code: 59)
+        let expected = CGEventFlags.maskControl.union(.maskShift)
+        XCTAssertEqual(captured, [.init(keyCode: 0, modifiers: expected.rawValue, label: "⌃⇧")])
+        XCTAssertFalse(session.isRecording)
+    }
+
+    func testKeyOnlyModeIgnoresModifiersAndAutorepeatThenCapturesNavigationKey() throws {
+        let session = ShortcutRecordingSession(mode: .key)
+        var captured: [RecordedShortcut] = []
+        session.onCapture = { captured.append($0) }
+        session.start()
+        try send(session, .flagsChanged, code: 59, flags: .maskControl)
+        try send(session, .keyDown, code: 123, flags: [.maskControl, .maskSecondaryFn, .maskNumericPad])
+        try send(session, .keyDown, code: 123, flags: [.maskControl, .maskSecondaryFn, .maskNumericPad], repeatKey: true)
+        try send(session, .keyUp, code: 123, flags: [.maskControl, .maskSecondaryFn, .maskNumericPad])
+        XCTAssertEqual(captured, [.init(keyCode: 123, modifiers: 0, label: "←")])
+        XCTAssertFalse(session.isRecording)
+    }
+
+    func testKeyOnlyModeDoesNotCaptureModifierKeyItself() throws {
+        let session = ShortcutRecordingSession(mode: .key)
+        var captured: [RecordedShortcut] = []
+        session.onCapture = { captured.append($0) }
+        session.start()
+        try send(session, .flagsChanged, code: 55, flags: .maskCommand)
+        try send(session, .flagsChanged, code: 55)
+        XCTAssertTrue(captured.isEmpty)
+        XCTAssertTrue(session.isRecording)
+        session.stop()
+    }
+
+    func testSplitAndAssembleRoundTripLegacyShortcut() throws {
+        let legacy = RecordedShortcut(keyCode: 40, modifiers: CGEventFlags.maskCommand.rawValue, label: "⌘K")
+        let parts = ShortcutRecordingSession.split(legacy)
+        XCTAssertEqual(parts.modifier?.modifiers, CGEventFlags.maskCommand.rawValue)
+        XCTAssertEqual(parts.key?.keyCode, 40)
+        XCTAssertEqual(parts.key?.label, "K")
+        XCTAssertEqual(ShortcutRecordingSession.assembled(modifier: parts.modifier, key: parts.key), legacy)
+    }
+
+    func testSplitKeepsSingleModifierAndAssemblyNeedsMainKey() throws {
+        let single = RecordedShortcut(keyCode: 55, modifiers: CGEventFlags.maskCommand.rawValue, label: "左侧 Command")
+        let parts = ShortcutRecordingSession.split(single)
+        XCTAssertEqual(parts.modifier, single)
+        XCTAssertNil(parts.key)
+        XCTAssertEqual(ShortcutRecordingSession.assembled(modifier: parts.modifier, key: nil), single)
+        XCTAssertNil(ShortcutRecordingSession.assembled(modifier: nil, key: nil))
+
+        let modifier = RecordedShortcut(keyCode: 0,
+                                        modifiers: CGEventFlags.maskControl.rawValue, label: "⌃")
+        let key = RecordedShortcut(keyCode: 123, modifiers: 0, label: "←")
+        XCTAssertEqual(ShortcutRecordingSession.assembled(modifier: modifier, key: key),
+                       RecordedShortcut(keyCode: 123, modifiers: CGEventFlags.maskControl.rawValue, label: "⌃←"))
+    }
+
     func testFieldFocusLossRemovalAndDismantlingStopLocalRecording() throws {
         let session = ShortcutRecordingSession()
         let field = ShortcutCapture.CaptureField(session: session)
