@@ -94,6 +94,32 @@ struct AboutPage: View {
                     Button(model.setup.completed ? "重新运行设置向导" : "继续设置向导") { model.setup.present() }
                 }
             }
+            SettingsPanel("手势识别", symbol: "hand.tap") {
+                SettingsPreference(symbol: "timer", title: "双击识别窗口", detail: "抬起后等待第二下按下的时间；越短单击响应越快，双击越容易漏判。") {
+                    HStack(spacing: SettingsStyle.Spacing.controls) {
+                        Slider(value: $model.doubleTapWindow, in: RemoteGestureController.doubleTapWindowRange, step: 0.05)
+                            .frame(width: 160).accessibilityLabel("双击识别窗口")
+                        Text(String(format: "%.2f 秒", model.doubleTapWindow))
+                            .font(.system(size: 12, design: .monospaced)).frame(width: 54, alignment: .trailing)
+                    }
+                }
+                Divider()
+                SettingsPreference(symbol: "clock", title: "长按触发延迟", detail: "按住多久触发长按；只配单击的按键不受影响。") {
+                    HStack(spacing: SettingsStyle.Spacing.controls) {
+                        Slider(value: $model.longPressDelay, in: RemoteGestureController.longPressDelayRange, step: 0.05)
+                            .frame(width: 160).accessibilityLabel("长按触发延迟")
+                        Text(String(format: "%.2f 秒", model.longPressDelay))
+                            .font(.system(size: 12, design: .monospaced)).frame(width: 54, alignment: .trailing)
+                    }
+                }
+                Divider()
+                SettingsPreference(symbol: "arrow.counterclockwise", title: "恢复默认", detail: "双击 0.20 秒，长按 0.55 秒。") {
+                    Button("恢复默认") {
+                        model.doubleTapWindow = RemoteGestureController.defaultDoubleTapWindow
+                        model.longPressDelay = RemoteGestureController.defaultLongPressDelay
+                    }
+                }
+            }
             SettingsPanel("诊断与支持", symbol: "stethoscope") {
                 HStack {
                     Text("复制权限和连接状态，帮助排查问题。").font(SettingsStyle.Typography.body).foregroundStyle(.secondary)

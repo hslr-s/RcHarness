@@ -11,6 +11,8 @@ enum SettingsKeys {
     static let showKeyProfilePrefix = "RcHarness.showKeyProfilePrefix"
     static let themeMode = "RcHarness.themeMode"
     static let openAtLaunch = "RcHarness.openAtLaunch"
+    static let doubleTapWindow = "RcHarness.doubleTapWindow"
+    static let longPressDelay = "RcHarness.longPressDelay"
     static let selectedProfileID = "RcHarness.selectedProfileID"
     static let selectedHarnessID = "RcHarness.selectedHarnessID"
     static let profileBindingsVersion = "RcHarness.profileBindingsVersion"

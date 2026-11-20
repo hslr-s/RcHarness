@@ -691,6 +691,12 @@ struct ActionMappingEditor: View {
                 Text("按住连续退格，松开即停止。可绑定到长按手势，保留单击的原有动作；双击或组合动作中执行一次退格。")
                     .font(.caption).foregroundStyle(.secondary)
             }
+            if value.action.supportsRepeatWhileHeld {
+                Toggle("按住连续触发", isOn: Binding(get: { value.repeatWhileHeld }, set: { value.repeatWhileHeld = $0 }))
+                    .toggleStyle(SettingsSwitchStyle()).controlSize(.small)
+                Text("按住后按连发间隔重复触发，松开即停止；不影响单击和双击的判定。")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             if value.action == .switchToNativeMode {
                 Text("关闭遥控器映射，恢复原生按键。返回映射模式时，请在主面板开启「启用遥控器映射」，或点击菜单栏的模式项。")
                     .font(.caption).foregroundStyle(.secondary)

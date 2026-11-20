@@ -11,6 +11,8 @@ final class PhrasePickerController {
         model.onDismiss = { [weak self] in self?.panel?.orderOut(nil) }
     }
 
+    func setDoubleTapWindow(_ value: TimeInterval) { model.setDoubleTapWindow(value) }
+
     func show(phrases: [SavedPhrase], assignments: PhraseAssignments) {
         model.present(phrases: phrases, assignments: assignments)
         let screen = NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) } ?? NSScreen.main

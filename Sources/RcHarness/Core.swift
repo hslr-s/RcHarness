@@ -329,6 +329,20 @@ enum RemoteAction: String, CaseIterable, Codable, Identifiable, Hashable {
     }
 }
 
+extension RemoteAction {
+    /// Actions whose down/up pair can be repeated while the key stays held.
+    var supportsRepeatWhileHeld: Bool {
+        switch self {
+        case .arrowUp, .arrowDown, .arrowLeft, .arrowRight,
+             .pointerUp, .pointerDown, .pointerLeft, .pointerRight,
+             .scrollUp, .scrollDown:
+            return true
+        default:
+            return false
+        }
+    }
+}
+
 enum PhraseLanguage: String, Codable {
     case chinese, english
 }
@@ -351,6 +365,7 @@ struct ButtonMapping: Codable, Equatable {
     var shortcut: RecordedShortcut?
     var applicationPath: String?
     var referenceID: String?
+    var repeatWhileHeld: Bool = false
 
     /// Legacy modifier actions remain readable while new voice bindings store
     /// a recorded shortcut directly.
@@ -364,6 +379,21 @@ struct ButtonMapping: Codable, Equatable {
         case .rightOption: return RecordedShortcut(keyCode: 0x3D, modifiers: 0x00080040, label: "右侧 Option")
         default: return nil
         }
+    }
+}
+
+extension ButtonMapping {
+    enum CodingKeys: String, CodingKey {
+        case action, shortcut, applicationPath, referenceID, repeatWhileHeld
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        action = try container.decode(RemoteAction.self, forKey: .action)
+        shortcut = try container.decodeIfPresent(RecordedShortcut.self, forKey: .shortcut)
+        applicationPath = try container.decodeIfPresent(String.self, forKey: .applicationPath)
+        referenceID = try container.decodeIfPresent(String.self, forKey: .referenceID)
+        repeatWhileHeld = try container.decodeIfPresent(Bool.self, forKey: .repeatWhileHeld) ?? false
     }
 }
 
