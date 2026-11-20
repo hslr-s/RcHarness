@@ -231,12 +231,13 @@ final class PhraseAssignmentTests: XCTestCase {
     }
 
     private func selectOption(at point: NSPoint, in shown: ShownPopover) async throws {
-        let closed = expectation(forNotification: NSPopover.didCloseNotification, object: shown.popover)
+        let closed = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            MainActor.assumeIsolated { !shown.popover.isShown && !shown.window.isVisible }
+        }, object: nil)
+        closed.expectationDescription = "The picker and its window must close after clicking an option at \(point)"
         try click(point, in: XCTUnwrap(shown.window.contentView), window: shown.window)
         await fulfillment(of: [closed], timeout: 2)
         await flushUI()
-        XCTAssertFalse(shown.popover.isShown, "The picker must finish closing before another key is selected")
-        XCTAssertFalse(shown.window.isVisible)
     }
 
     /// SwiftUI distributes the panel's spacers differently across window sizes
