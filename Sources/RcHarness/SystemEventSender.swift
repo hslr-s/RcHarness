@@ -64,6 +64,19 @@ final class SystemEventSender {
     private var keyUsesFunctionSource: [CGKeyCode: Bool] = [:]
     private var heldMouseButtons: [UInt32: Int] = [:]
     private var heldMediaKeys: [Int: Int] = [:]
+    private let monotonicTime: () -> CFTimeInterval
+
+    /// Consecutive pointer steps ramp up linearly while a direction is held.
+    private struct PointerRepeat {
+        var action: RemoteAction
+        var startedAt: CFTimeInterval
+        var lastStepAt: CFTimeInterval
+    }
+    private var pointerRepeat: PointerRepeat?
+    static let pointerBaseStep: CGFloat = 12
+    static let pointerMaxStep: CGFloat = 60
+    static let pointerAccelerationPerSecond: CGFloat = 60
+    static let pointerRepeatGap: CFTimeInterval = 0.18
 
     private var heldModifiers: CGEventFlags {
         heldKeys.keys.reduce(CGEventFlags()) { $0.union(CGEventFlags(rawValue: $1.flags)) }
@@ -74,13 +87,15 @@ final class SystemEventSender {
         postEvent: @escaping (CGEvent) -> Void = { $0.post(tap: .cghidEventTap) },
         movePointer: @escaping (CGPoint) -> Void = { CGWarpMouseCursorPosition($0) },
         openApplication: @escaping (URL) -> Void = { NSWorkspace.shared.open($0) },
-        desktopController: any DesktopController = SystemDesktopController.shared
+        desktopController: any DesktopController = SystemDesktopController.shared,
+        monotonicTime: @escaping () -> CFTimeInterval = CFAbsoluteTimeGetCurrent
     ) {
         self.cursorLocation = cursorLocation
         self.postEvent = postEvent
         self.movePointer = movePointer
         self.openApplication = openApplication
         self.desktopController = desktopController
+        self.monotonicTime = monotonicTime
     }
 
     func send(_ mapping: ButtonMapping, pressed: Bool) {
@@ -115,10 +130,10 @@ final class SystemEventSender {
             desktopController.toggle()
         case .mouseLeft: mouse(.left, pressed: pressed)
         case .mouseRight: mouse(.right, pressed: pressed)
-        case .pointerUp: move(0, -12, pressed: pressed)
-        case .pointerDown: move(0, 12, pressed: pressed)
-        case .pointerLeft: move(-12, 0, pressed: pressed)
-        case .pointerRight: move(12, 0, pressed: pressed)
+        case .pointerUp: movePointerStep(mapping.action, dx: 0, dy: -1, pressed: pressed)
+        case .pointerDown: movePointerStep(mapping.action, dx: 0, dy: 1, pressed: pressed)
+        case .pointerLeft: movePointerStep(mapping.action, dx: -1, dy: 0, pressed: pressed)
+        case .pointerRight: movePointerStep(mapping.action, dx: 1, dy: 0, pressed: pressed)
         case .scrollUp: scroll(4, pressed: pressed)
         case .scrollDown: scroll(-4, pressed: pressed)
         case .recordedShortcut:
@@ -204,6 +219,25 @@ final class SystemEventSender {
             event.flags = heldModifiers
             postEvent(event)
         }
+    }
+
+    /// Repeated steps in the same direction grow linearly from the base step
+    /// until the cap. Releasing or changing direction starts a fresh ramp.
+    private func movePointerStep(_ action: RemoteAction, dx: CGFloat, dy: CGFloat, pressed: Bool) {
+        guard pressed else { return }
+        let now = monotonicTime()
+        let step: CGFloat
+        if let active = pointerRepeat, active.action == action,
+           now >= active.lastStepAt, now - active.lastStepAt <= Self.pointerRepeatGap {
+            let held = now - active.startedAt
+            step = min(Self.pointerMaxStep,
+                       Self.pointerBaseStep + CGFloat(held) * Self.pointerAccelerationPerSecond)
+            pointerRepeat = PointerRepeat(action: action, startedAt: active.startedAt, lastStepAt: now)
+        } else {
+            step = Self.pointerBaseStep
+            pointerRepeat = PointerRepeat(action: action, startedAt: now, lastStepAt: now)
+        }
+        move(dx * step, dy * step, pressed: true)
     }
 
     private func move(_ x: CGFloat, _ y: CGFloat, pressed: Bool) {

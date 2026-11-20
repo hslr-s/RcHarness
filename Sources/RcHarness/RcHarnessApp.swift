@@ -146,7 +146,10 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
             self.voiceSession.cancel()
             self.voice.cancelActiveStream()
             self.dashboardModel.stopTestTone()
-            if self.dashboardModel.setup.isPresented { self.setOperationMode(.mapping) }
+            if self.dashboardModel.setup.isPresented {
+                if self.mode == .mouse { self.exitMouseMode() }
+                else { self.setOperationMode(.mapping) }
+            }
             self.statusMenu.item(withTag: 100)?.isEnabled = !self.dashboardModel.setup.isPresented
         }
         windowController.onWindowClose = { [weak self] in
@@ -687,6 +690,11 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
         mouseModeEntryInput = nil
         setOperationMode(.mapping)
         modeNotice.show("退出鼠标模式")
+        // App switches were ignored while mouse mode owned the keymap. Apply
+        // the app that is actually frontmost now that mapping is back.
+        let app = NSWorkspace.shared.frontmostApplication
+        guard app?.bundleIdentifier != Bundle.main.bundleIdentifier else { return }
+        dashboardModel?.matchApplication(app?.bundleURL?.path, bundleIdentifier: app?.bundleIdentifier)
     }
 
     private func applyGestureTiming() {
@@ -708,6 +716,7 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
         heldVoiceInput = nil
         voiceStopInputs.removeAll()
         voiceSession.cancel()
+        voice.cancelActiveStream()
         mode = newMode
         gestures.setOperationMode(mode)
         voice.enabled = mode != .native

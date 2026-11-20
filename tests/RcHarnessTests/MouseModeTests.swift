@@ -101,6 +101,44 @@ final class MouseModeTests: XCTestCase {
         XCTAssertEqual(actions.last, .volumeDown)
     }
 
+    func testResetMouseSchemeRestoresPointerGestures() {
+        let model = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
+        model.activateProfile(SavedKeyProfile.mouseID)
+        model.update(ButtonMapping(action: .disabled), for: .buttonA, trigger: .single)
+        XCTAssertEqual(model.mouseProfile?.mapping[.buttonA, .single].action, .disabled)
+        model.resetMapping()
+        XCTAssertEqual(model.mouseProfile?.mapping[.buttonA, .single].action, .mouseLeft)
+        XCTAssertEqual(model.mouseProfile?.mapping[.dpadUp, .single].action, .pointerUp)
+        XCTAssertEqual(model.mouseProfile?.mapping[.rightShoulder, .double].action, .volumeUp)
+    }
+
+    func testPointerStepsAccelerateLinearlyWhileHeld() {
+        var now: CFTimeInterval = 100
+        var positions: [CGPoint] = []
+        let sender = SystemEventSender(cursorLocation: { .zero },
+                                       postEvent: { _ in },
+                                       movePointer: { positions.append($0) },
+                                       monotonicTime: { now })
+        let up = ButtonMapping(action: .pointerUp, repeatWhileHeld: true)
+        var expectedY: [CGFloat] = []
+        for step in 0..<10 {
+            expectedY.append(-min(SystemEventSender.pointerMaxStep,
+                                  SystemEventSender.pointerBaseStep + CGFloat(step) * 0.1 * SystemEventSender.pointerAccelerationPerSecond))
+            sender.send(up, pressed: true)
+            now += 0.1
+        }
+        now += 1
+        sender.send(up, pressed: true)
+        expectedY.append(-SystemEventSender.pointerBaseStep)
+        sender.send(ButtonMapping(action: .pointerLeft), pressed: true)
+        expectedY.append(0)
+        XCTAssertEqual(positions.count, expectedY.count)
+        for (index, step) in zip(positions.map(\.y), expectedY).enumerated() {
+            XCTAssertEqual(step.0, step.1, accuracy: 0.001, "step \(index)")
+        }
+        XCTAssertEqual(positions.last?.x, -SystemEventSender.pointerBaseStep)
+    }
+
     func testSwitchActionIsDecodableAndForbiddenInsideMacros() throws {
         let action = try XCTUnwrap(RemoteAction(rawValue: "toggleMouseMode"))
         XCTAssertEqual(action, .switchToMouseMode)

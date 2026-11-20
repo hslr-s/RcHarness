@@ -540,6 +540,9 @@ final class RemoteDashboardModel: ObservableObject {
     }
     func resetMapping() {
         if let profile = profiles.first(where: { $0.id == selectedProfileID }),
+           profile.id == SavedKeyProfile.mouseID {
+            mapping = .defaults(for: remoteProfile, macros: macros).mouseMode
+        } else if let profile = profiles.first(where: { $0.id == selectedProfileID }),
            profile.id != SavedKeyProfile.defaultID,
            let harness = profile.builtInHarness
                 ?? harnesses.first(where: { $0.id == "chatgpt" && $0.profileID == profile.id }) {

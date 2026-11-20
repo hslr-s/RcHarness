@@ -702,7 +702,7 @@ struct ActionMappingEditor: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             if value.action == .switchToMouseMode {
-                Text("进入模拟鼠标模式，使用「鼠标模式方案」的按键映射。再按一次这个键即可退出；鼠标模式期间切换应用不会切换方案。")
+                Text("进入模拟鼠标模式，使用「鼠标模式方案」的按键映射。再按一次这个键即可退出；鼠标模式期间切换应用不会切换方案。避免与全局按键使用同一个实体键。")
                     .font(.caption).foregroundStyle(.secondary)
             }
             if value.action == .showDesktop && SystemDesktopController.shared.isSupported {
