@@ -21,7 +21,7 @@ final class HarnessDefaultProfilesTests: XCTestCase {
         var generatedIDs: Set<UUID> = []
         for remote in RemoteProfiles.all {
             model.selectRemoteProfile(remote.id)
-            XCTAssertEqual(model.profiles.count, HarnessConfiguration.defaults.count + 1)
+            XCTAssertEqual(model.profiles.count, HarnessConfiguration.defaults.count + 2)
             XCTAssertEqual(model.selectedProfileID, SavedKeyProfile.defaultID)
             XCTAssertNil(model.selectedHarnessID)
             XCTAssertEqual(model.defaultMapping, .defaults(for: remote, macros: model.macros))
@@ -75,7 +75,7 @@ final class HarnessDefaultProfilesTests: XCTestCase {
         for remote in RemoteProfiles.all {
             model.selectRemoteProfile(remote.id)
             let old = try XCTUnwrap(oldConfigurations[remote.id])
-            XCTAssertEqual(model.profiles.count, old.profiles.count + 3)
+            XCTAssertEqual(model.profiles.count, old.profiles.count + 4)
             for profile in old.profiles {
                 XCTAssertEqual(model.profiles.first { $0.id == profile.id }, profile)
             }

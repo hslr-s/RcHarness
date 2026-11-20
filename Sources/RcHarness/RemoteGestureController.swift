@@ -64,7 +64,7 @@ final class RemoteGestureController {
     }
 
     func handle(_ input: ControllerInput, pressed: Bool, mapping: RemoteMapping) {
-        guard operationMode == .mapping else { return }
+        guard operationMode != .native else { return }
         if pressed {
             if let old = sessions[input] {
                 guard !old.held else {

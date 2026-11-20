@@ -144,7 +144,9 @@ final class RefactorTests: XCTestCase {
         mapping[.buttonB, .double] = ButtonMapping(action: .macro, referenceID: nil)
         let macro = SavedMacro(name: "缺失", steps: [MacroStep(mapping: ButtonMapping(action: .macro, referenceID: UUID().uuidString))])
         let backup = SettingsBackup(mapping: mapping, profiles: [], macros: [macro], phrases: [])
-        XCTAssertEqual(try model.applyConfiguration(backup), 3)
+        // The seeded mouse scheme inherits the legacy default mapping, so its
+        // copied phrase reference is reported alongside the original one.
+        XCTAssertEqual(try model.applyConfiguration(backup), 4)
         XCTAssertThrowsError(try model.applyConfiguration(SettingsBackup(version: 7, mapping: .defaults, profiles: [], macros: [], phrases: []))) {
             XCTAssertEqual($0 as? SettingsBackupError, .unsupportedVersion(7))
         }
@@ -162,10 +164,10 @@ final class RefactorTests: XCTestCase {
         model.exportConfiguration(to: exported)
         model.importConfiguration(from: exported)
         let preview = try XCTUnwrap(model.pendingConfigurationImport)
-        XCTAssertEqual(preview.prepared.danglingReferences, 3)
+        XCTAssertEqual(preview.prepared.danglingReferences, 4)
         try model.confirmConfigurationImport(preview.id)
         XCTAssertTrue(model.actionMessage.hasPrefix("配置已导入"))
-        XCTAssertTrue(model.actionMessage.contains("3 处常用语或组合动作引用已失效"))
+        XCTAssertTrue(model.actionMessage.contains("4 处常用语或组合动作引用已失效"))
     }
 
     func testDriverAndAppAgreeOnTheFlushProperty() throws {

@@ -53,7 +53,7 @@ struct MappingPage: View {
                     }
                     .frame(maxWidth: 360)
                     .help("仅显示「\(model.remoteProfile.shortName)」的按键方案")
-                    if let id = model.selectedProfileID, id != SavedKeyProfile.defaultID {
+                    if let id = model.selectedProfileID, id != SavedKeyProfile.defaultID, id != SavedKeyProfile.mouseID {
                         Button(action: onRenameProfile) { Image(systemName: "pencil") }
                             .buttonStyle(.bordered)
                             .help("重命名当前按键方案")
@@ -662,7 +662,7 @@ struct ActionMappingEditor: View {
         let system: [RemoteAction] = [.volumeUp, .volumeDown, .mute, .playPause, .showAllWindows] + RemoteAction.harnessFocusActions
             + (SystemDesktopController.shared.isSupported ? [.showDesktop] : [])
             + [.mouseLeft, .mouseRight, .pointerUp, .pointerDown, .pointerLeft, .pointerRight, .scrollUp, .scrollDown]
-            + (parentMacroID == nil ? [.switchToNativeMode, .switchApplications, .openHarnessSwitcher, .openPhrases] : [])
+            + (parentMacroID == nil ? [.switchToNativeMode, .switchToMouseMode, .switchApplications, .openHarnessSwitcher, .openPhrases] : [])
         let custom: [RemoteAction] = [.recordedShortcut, .openApplication, .phrase, .macro]
         let filtered: [RemoteAction]
         switch filter {
@@ -699,6 +699,10 @@ struct ActionMappingEditor: View {
             }
             if value.action == .switchToNativeMode {
                 Text("关闭遥控器映射，恢复原生按键。返回映射模式时，请在主面板开启「启用遥控器映射」，或点击菜单栏的模式项。")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            if value.action == .switchToMouseMode {
+                Text("进入模拟鼠标模式，使用「鼠标模式方案」的按键映射。再按一次这个键即可退出；鼠标模式期间切换应用不会切换方案。")
                     .font(.caption).foregroundStyle(.secondary)
             }
             if value.action == .showDesktop && SystemDesktopController.shared.isSupported {

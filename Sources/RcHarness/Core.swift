@@ -230,7 +230,7 @@ enum ControllerInput: String, Hashable, CaseIterable, Codable {
     }
 }
 
-enum ControllerOperationMode: Hashable { case mapping, native }
+enum ControllerOperationMode: Hashable { case mapping, native, mouse }
 
 enum HarnessFocusTarget: String {
     case chatGPT = "chatgpt", claude, cursor, deepSeek = "deepseek", workBuddy = "workbuddy", openCode = "opencode"
@@ -240,6 +240,7 @@ enum RemoteAction: String, CaseIterable, Codable, Identifiable, Hashable {
     case enter, backspace, rapidDelete, escape, arrowUp, arrowDown, arrowLeft, arrowRight
     // Preserve the stored value used by existing mappings and backups.
     case switchToNativeMode = "toggleMode"
+    case switchToMouseMode = "toggleMouseMode"
     case rightCommand, copy, paste, browserBack, browserForward
     case mouseLeft, mouseRight, pointerUp, pointerDown, pointerLeft, pointerRight
     case scrollUp, scrollDown, volumeUp, volumeDown, recordedShortcut, openApplication, disabled
@@ -288,6 +289,7 @@ enum RemoteAction: String, CaseIterable, Codable, Identifiable, Hashable {
         case .arrowLeft: "方向键 ←"
         case .arrowRight: "方向键 →"
         case .switchToNativeMode: "切换到原生模式"
+        case .switchToMouseMode: "切换到鼠标模式"
         case .rightCommand: "按住右侧 Command"
         case .showAllWindows: "查看所有窗口 (Control + ↑)"
         case .switchApplications: "切换应用 (⌘ Tab)"
@@ -418,6 +420,33 @@ struct RemoteMapping: Codable, Equatable {
             .youtube: .copy, .netflix: .paste,
         ]
         for (input, action) in actions { result[input] = ButtonMapping(action: action) }
+        return result
+    }
+
+    /// Mouse mode starts from the everyday scheme, then overrides the gestures
+    /// that turn the remote into a pointer. Everything else stays editable in
+    /// the dedicated mouse profile, independently of the default scheme.
+    var mouseMode: RemoteMapping {
+        var result = self
+        result[.buttonA, .single] = ButtonMapping(action: .mouseLeft)
+        result[.buttonA, .double] = ButtonMapping(action: .disabled)
+        result[.buttonA, .long] = ButtonMapping(action: .mouseRight)
+        for (input, action) in [
+            (ControllerInput.dpadUp, RemoteAction.pointerUp),
+            (.dpadDown, .pointerDown),
+            (.dpadLeft, .pointerLeft),
+            (.dpadRight, .pointerRight)
+        ] {
+            result[input, .single] = ButtonMapping(action: action, repeatWhileHeld: true)
+            result[input, .double] = ButtonMapping(action: .disabled)
+            result[input, .long] = ButtonMapping(action: .disabled)
+        }
+        result[.rightShoulder, .single] = ButtonMapping(action: .scrollUp, repeatWhileHeld: true)
+        result[.rightShoulder, .double] = ButtonMapping(action: .volumeUp)
+        result[.rightShoulder, .long] = ButtonMapping(action: .disabled)
+        result[.leftShoulder, .single] = ButtonMapping(action: .scrollDown, repeatWhileHeld: true)
+        result[.leftShoulder, .double] = ButtonMapping(action: .volumeDown)
+        result[.leftShoulder, .long] = ButtonMapping(action: .disabled)
         return result
     }
 

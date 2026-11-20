@@ -228,8 +228,8 @@ struct RemoteDashboardView: View {
         ))
         .toggleStyle(SettingsSwitchStyle()).controlSize(.small).font(SettingsStyle.Typography.body)
         .fixedSize()
-        .help("关闭后，遥控器按原生方式工作；重新开启此开关可恢复映射。")
-        .accessibilityHint("关闭后，遥控器按原生方式工作；重新开启此开关可恢复映射。")
+        .help("关闭后，遥控器按原生方式工作；重新开启此开关可恢复映射。鼠标模式下再按进入键即可退出。")
+        .accessibilityHint("关闭后，遥控器按原生方式工作；重新开启此开关可恢复映射。鼠标模式下再按进入键即可退出。")
     }
 
     private var deviceCard: some View {

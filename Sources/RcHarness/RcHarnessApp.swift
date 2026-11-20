@@ -43,6 +43,13 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
         }
     }
     private var mode: ControllerOperationMode = .mapping
+    private var mouseModeEntryInput: ControllerInput?
+    private lazy var modeNotice = ModeNoticeController()
+    /// Mouse mode always uses its own editable profile, regardless of which
+    /// scheme the dashboard currently has selected.
+    private var activeMapping: RemoteMapping {
+        mode == .mouse ? (dashboardModel?.effectiveMouseMapping ?? mapping) : mapping
+    }
     private var inputPermissionsWereReady = false
     private var statusItem: NSStatusItem!
     private var statusMenu: NSMenu!
@@ -219,7 +226,7 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
             self.voice.setVoiceMode(self.dashboardModel.voiceMode)
             self.hid.setVoiceMode(self.dashboardModel.voiceMode)
             self.voice.gainDB = Float(self.dashboardModel.gain)
-            self.voice.enabled = self.mode == .mapping
+            self.voice.enabled = self.mode != .native
             self.configureInput()
             self.hid.setOperationMode(self.mode)
             self.statusMenu.item(withTag: 101)?.title = "RcHarness · \(profile.model)"
@@ -284,6 +291,7 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
         harnessSwitcher.model.dismiss(reason: "foreground-application-changed")
         phrasePicker.model.dismiss()
         guard app?.bundleIdentifier != Bundle.main.bundleIdentifier else { return }
+        guard mode != .mouse else { return }
         dashboardModel?.matchApplication(app?.bundleURL?.path, bundleIdentifier: app?.bundleIdentifier)
     }
 
@@ -418,7 +426,7 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
         }
         voice.canStartCapture = { [weak self] in
             guard let self else { return false }
-            return self.mode == .mapping && self.voiceSession.isIdle
+            return self.mode != .native && self.voiceSession.isIdle
                 && self.dashboardModel.setup.allowsVoiceCapture
                 && (!self.dashboardModel.setup.isPresented || self.dashboardModel.setupReadiness.ready)
                 && self.dashboardModel?.microphoneOperationInProgress != true
@@ -454,11 +462,18 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
             _ = harnessSwitcher.model.handle(input, pressed: pressed)
             return
         }
+        // The key used to enter mouse mode is also the only way out. Intercept
+        // its press before gesture resolution so the exit always works, even
+        // if the user has remapped that key inside the mouse profile.
+        if mode == .mouse, pressed, input == mouseModeEntryInput {
+            exitMouseMode()
+            return
+        }
         if voiceStopInputs.contains(input) {
             if !pressed { voiceStopInputs.remove(input) }
             return
         }
-        if mode == .mapping, pressed, heldVoiceInput != input,
+        if mode != .native, pressed, heldVoiceInput != input,
            voiceSession.finishToggle(waitForStreamEnd: dashboardModel.voiceMode == .tap) {
             heldVoiceInput = nil
             voiceStopInputs.insert(input)
@@ -469,7 +484,7 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
         let switcherConsumed = harnessSwitcher.model.handle(input, pressed: pressed)
         let consumed = phraseConsumed || switcherConsumed
         if dashboardModel?.isGlobalInput(input) == true {
-            Log.switcher.notice("Global input=\(input.rawValue, privacy: .public) down=\(pressed) consumed=\(consumed) mapping_mode=\(self.mode == .mapping) single=\(self.mapping[input, .single].action.rawValue, privacy: .public) double=\(self.mapping[input, .double].action.rawValue, privacy: .public) long=\(self.mapping[input, .long].action.rawValue, privacy: .public)")
+            Log.switcher.notice("Global input=\(input.rawValue, privacy: .public) down=\(pressed) consumed=\(consumed) mapping_mode=\(self.mode != .native) single=\(self.activeMapping[input, .single].action.rawValue, privacy: .public) double=\(self.activeMapping[input, .double].action.rawValue, privacy: .public) long=\(self.activeMapping[input, .long].action.rawValue, privacy: .public)")
         }
         if consumed { return }
         // Keep routing the fixed voice key release to its active session.
@@ -478,13 +493,13 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
                 heldVoiceInput = nil
                 voiceSession.release()
             } else {
-                gestures.handle(input, pressed: false, mapping: mapping)
+                gestures.handle(input, pressed: false, mapping: activeMapping)
             }
             return
         }
         if heldVoiceInput == input { return }
         if mode == .native || input != .options {
-            gestures.handle(input, pressed: pressed, mapping: mapping)
+            gestures.handle(input, pressed: pressed, mapping: activeMapping)
             return
         }
         guard !dashboardModel.microphoneOperationInProgress else { return }
@@ -495,7 +510,7 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
             dashboardModel.postNotice(voice.status, level: .error, recoveryAction: .connection, source: .voiceConnection)
             return
         }
-        AudioDiagnostics.log("[RcHarness] voice button down=\(pressed) action=\(mapping[.options].action.rawValue) tap=\(dashboardModel.voiceFnTap) accessibility=\(AXIsProcessTrusted())")
+        AudioDiagnostics.log("[RcHarness] voice button down=\(pressed) action=\(activeMapping[.options].action.rawValue) tap=\(dashboardModel.voiceFnTap) accessibility=\(AXIsProcessTrusted())")
         if pressed {
             guard CGPreflightListenEventAccess(), AXIsProcessTrusted() else {
                 heldVoiceInput = nil
@@ -508,14 +523,14 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
             heldVoiceInput = input
             dashboardModel.stopTestTone()
             voice.prepareForPress(requestMicrophone: false)
-            voiceSession.press(mapping: mapping[.options], fnTap: false, toggle: dashboardModel.voiceMode == .tap,
+            voiceSession.press(mapping: activeMapping[.options], fnTap: false, toggle: dashboardModel.voiceMode == .tap,
                                endToggleWithStream: dashboardModel.voiceMode == .tap)
         }
     }
 
     private func sendAction(_ button: ButtonMapping, pressed: Bool, input: ControllerInput? = nil) {
         if button.action == .switchApplications {
-            guard pressed, mode == .mapping, let input else { return }
+            guard pressed, mode != .native, let input else { return }
             harnessSwitcher.model.dismiss(reason: "application-switcher-opened")
             phrasePicker.model.dismiss()
             gestures.cancel()
@@ -525,7 +540,7 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
             voice.cancelActiveStream()
             applicationSwitcher.present(input: input)
         } else if button.action == .openPhrases {
-            guard pressed, mode == .mapping else { return }
+            guard pressed, mode != .native else { return }
             applicationSwitcher.cancel()
             if phrasePicker.model.isPresented {
                 phrasePicker.model.dismiss()
@@ -539,7 +554,7 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
                 phrasePicker.show(phrases: dashboardModel.phrases, assignments: dashboardModel.phraseAssignments)
             }
         } else if button.action == .openHarnessSwitcher {
-            guard pressed, mode == .mapping else { return }
+            guard pressed, mode != .native else { return }
             applicationSwitcher.cancel()
             if harnessSwitcher.model.isPresented {
                 harnessSwitcher.model.dismiss(reason: "open-action-toggle")
@@ -553,10 +568,19 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
                 voice.cancelActiveStream()
             }
         } else if let target = button.action.harnessFocusTarget {
-            guard pressed, mode == .mapping else { return }
+            guard pressed, mode != .native else { return }
             focusHarness(target)
+        } else if button.action == .switchToMouseMode {
+            guard pressed, let input else { return }
+            if mode == .mouse {
+                if input == mouseModeEntryInput { exitMouseMode() }
+            } else {
+                enterMouseMode(from: input)
+            }
         } else if button.action == .switchToNativeMode {
-            if pressed { setOperationMode(.native) }
+            guard pressed else { return }
+            if mode == .mouse { exitMouseMode() }
+            setOperationMode(.native)
         } else if button.action == .phrase {
             if pressed, let phrase = dashboardModel?.phrases.first(where: { $0.id.uuidString == button.referenceID }) {
                 sender.typeText(phrase.text)
@@ -583,7 +607,7 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
         let processID = runningApplication?.processIdentifier
         HarnessApplicationFocus.perform(installedURL: installedURL, runningProcessID: processID,
                                         focusRunning: { [weak self] processID in
-            guard let self, self.mode == .mapping, self.harnessFocusRequest == request else { return }
+            guard let self, self.mode != .native, self.harnessFocusRequest == request else { return }
             let result = HarnessApplicationActivation.perform(processID: processID, isAvailable: {
                 guard let application = NSRunningApplication(processIdentifier: processID),
                       !application.isTerminated else { return false }
@@ -631,7 +655,7 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
         let start = DispatchTime.now()
         for event in plan.events {
             let work = DispatchWorkItem { [weak self] in
-                guard let self, self.mode == .mapping else { return }
+                guard let self, self.mode != .native else { return }
                 if let text = event.text { self.sender.typeText(text) }
                 else {
                     self.sendAction(event.mapping, pressed: true)
@@ -644,7 +668,25 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
     }
 
     @objc private func toggleMode() {
+        if mode == .mouse {
+            exitMouseMode()
+            return
+        }
         setOperationMode(mode == .mapping ? .native : .mapping)
+    }
+
+    private func enterMouseMode(from input: ControllerInput) {
+        guard mode != .mouse else { return }
+        mouseModeEntryInput = input
+        setOperationMode(.mouse)
+        modeNotice.show("进入鼠标模式")
+    }
+
+    private func exitMouseMode() {
+        guard mode == .mouse else { return }
+        mouseModeEntryInput = nil
+        setOperationMode(.mapping)
+        modeNotice.show("退出鼠标模式")
     }
 
     private func applyGestureTiming() {
@@ -668,12 +710,12 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
         voiceSession.cancel()
         mode = newMode
         gestures.setOperationMode(mode)
-        voice.enabled = mode == .mapping
+        voice.enabled = mode != .native
         hid.setOperationMode(mode)
         dashboardModel?.operationMode = mode
         if mode == .native { microphone.stop() }
         if let item = statusMenu.item(withTag: 100) {
-            item.title = mode == .mapping ? "模式：映射" : "模式：原生"
+            item.title = mode == .mapping ? "模式：映射" : (mode == .mouse ? "模式：鼠标" : "模式：原生")
         }
         updateStatusItem()
     }
@@ -1154,7 +1196,7 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
         DispatchQueue.main.async {
             let connection = self.hid.isConnected ? "遥控器已连接" : "遥控器未连接"
             let voice = self.voice.isReady ? " · 语音已就绪" : ""
-            let mode = self.mode == .mapping ? "映射模式" : "原生模式"
+            let mode = self.mode == .mapping ? "映射模式" : (self.mode == .mouse ? "鼠标模式" : "原生模式")
             let description = "RcHarness · \(connection)\(voice) · \(mode)"
             self.statusItem.button?.toolTip = description
             self.statusItem.button?.setAccessibilityHelp(description)

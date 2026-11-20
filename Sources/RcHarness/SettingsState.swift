@@ -318,6 +318,7 @@ struct SavedKeyProfile: Codable, Identifiable, Equatable {
     /// Absent in older backups; ordinary user-created suffixes do not inherit it.
     var protectedBuiltInID: String? = nil
     static let defaultID = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
+    static let mouseID = UUID(uuidString: "00000000-0000-0000-0000-000000000002")!
 
     var builtInHarness: HarnessConfiguration? {
         HarnessConfiguration.builtIn(matchingProfileName: name)

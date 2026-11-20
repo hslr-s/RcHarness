@@ -178,7 +178,7 @@ final class HarnessTests: XCTestCase {
         var harness = try XCTUnwrap(HarnessConfiguration.defaults.first { $0.id == "workbuddy" })
         harness.profileID = existing.id
         try model.applyConfiguration(SettingsBackup(mapping: .defaults, profiles: [existing], macros: [], phrases: [], harnesses: [harness]))
-        XCTAssertEqual(model.profiles.count, HarnessConfiguration.defaults.count + 1)
+        XCTAssertEqual(model.profiles.count, HarnessConfiguration.defaults.count + 2)
         XCTAssertEqual(model.profiles.first { $0.id == existing.id }, existing)
         XCTAssertEqual(model.harnesses.first?.profileID, existing.id)
         XCTAssertEqual(model.harnesses.first?.didInitializeDefaultProfile, true)

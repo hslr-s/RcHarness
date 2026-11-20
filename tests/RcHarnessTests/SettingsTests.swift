@@ -84,7 +84,7 @@ final class SettingsTests: XCTestCase {
         XCTAssertNil(RemoteMapping.legacy(profileID: "remote", defaults: defaults))
         let model = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
         XCTAssertEqual(model.profiles.first?.id, SavedKeyProfile.defaultID)
-        XCTAssertEqual(model.profiles.map(\.name), ["默认方案"] + HarnessConfiguration.defaults.map { $0.name + " 按键方案" })
+        XCTAssertEqual(model.profiles.map(\.name), ["默认方案", "鼠标模式方案"] + HarnessConfiguration.defaults.map { $0.name + " 按键方案" })
         XCTAssertEqual(defaults.data(forKey: "RcHarness.recovery.profiles"), original)
         XCTAssertNotEqual(defaults.data(forKey: "RcHarness.profiles"), original)
     }

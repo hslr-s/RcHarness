@@ -19,7 +19,7 @@ struct ProfilesPage: View {
                 }
                 .buttonStyle(.borderedProminent)
             }
-            Text("仅显示当前遥控器的方案，全局按键也按遥控器分别保存。同一方案可绑定多个 Harness，修改后对所有绑定的 Harness 生效。\n默认方案、内置 Harness 同名方案及已绑定 Harness 的方案不可删除。")
+            Text("仅显示当前遥控器的方案，全局按键也按遥控器分别保存。同一方案可绑定多个 Harness，修改后对所有绑定的 Harness 生效。\n默认方案、鼠标模式方案、内置 Harness 同名方案及已绑定 Harness 的方案不可删除。")
                 .font(SettingsStyle.Typography.body).foregroundStyle(.secondary)
             Divider()
             ForEach(model.profiles) { profile in
