@@ -12,6 +12,14 @@ struct HarnessSettingsView: View {
                 HStack(spacing: SettingsStyle.Spacing.inline) {
                     HarnessIcon(size: 15).foregroundStyle(.secondary)
                     Text("应用 Harness").font(SettingsStyle.Typography.panelTitle)
+                    Spacer(minLength: 12)
+                    Button {
+                        addApplication()
+                    } label: {
+                        Label("添加应用", systemImage: "plus")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.regular)
                 }
                 Text("当前遥控器：\(model.remoteProfile.shortName)。每个 Harness 可为不同遥控器分别绑定方案，同一方案可绑定多个 Harness。")
                     .font(SettingsStyle.Typography.body).foregroundStyle(.secondary)
@@ -129,5 +137,10 @@ struct HarnessSettingsView: View {
         runningApplications = NSWorkspace.shared.runningApplications
             .filter { $0.activationPolicy == .regular && $0.bundleURL != nil && $0.bundleIdentifier != Bundle.main.bundleIdentifier }
             .sorted { ($0.localizedName ?? "").localizedStandardCompare($1.localizedName ?? "") == .orderedAscending }
+    }
+
+    private func addApplication() {
+        guard let url = FilePanels.chooseApplication() else { return }
+        model.addHarness(applicationURL: url)
     }
 }
