@@ -83,6 +83,8 @@ final class RemoteDashboardModel: ObservableObject {
             settingsWrites.debounce(SettingsKeys.Stored.macros) { [weak self] in self?.macros ?? [] }
         }
     }
+    @Published private(set) var customMacroTags: [MacroTag]
+    var macroTags: [MacroTag] { MacroTag.all + customMacroTags }
     @Published var phrases: [SavedPhrase] {
         didSet {
             guard !isCommittingConfiguration else { return }
@@ -239,6 +241,7 @@ final class RemoteDashboardModel: ObservableObject {
         // Configurations saved before profiles owned the default mapping kept it separately.
         let legacyDefaultMapping = SettingsStorage.load(RemoteMapping.self, SettingsKeys.Stored.legacyBaseMapping, defaults: defaults) ?? mapping
         profiles = SettingsStorage.load([SavedKeyProfile].self, SettingsKeys.Stored.profiles, defaults: defaults) ?? []
+        customMacroTags = SettingsStorage.load([MacroTag].self, SettingsKeys.Stored.customMacroTags, defaults: defaults) ?? []
         macros = SavedMacro.normalizingNames(in: SettingsStorage.load([SavedMacro].self, SettingsKeys.Stored.macros, defaults: defaults) ?? [])
         phrases = SettingsStorage.load([SavedPhrase].self, SettingsKeys.Stored.phrases, defaults: defaults) ?? []
         phraseAssignments = SettingsStorage.load(PhraseAssignments.self, SettingsKeys.Stored.phraseAssignments, defaults: defaults) ?? PhraseAssignments()
@@ -765,6 +768,7 @@ final class RemoteDashboardModel: ObservableObject {
         editorVisible = false
         remoteKeyConfigurations = backup.remoteKeyConfigurations ?? [:]
         profiles = backup.profiles
+        customMacroTags = backup.customMacroTags ?? []
         macros = backup.macros
         phrases = backup.phrases
         phraseAssignments = backup.phraseAssignments ?? PhraseAssignments()
@@ -793,6 +797,42 @@ final class RemoteDashboardModel: ObservableObject {
 
     // MARK: Macros
 
+    func saveCustomMacroTag(name: String, id: String? = nil) throws {
+        let name = try MacroTag.validatedName(name, in: macroTags, excluding: id)
+        var tags = customMacroTags
+        if let id {
+            let index = try customMacroTagIndex(id)
+            tags[index] = MacroTag(id: id, name: name)
+        } else {
+            tags.append(MacroTag(id: UUID().uuidString, name: name))
+        }
+        try SettingsStorage.saveValues([SettingsKeys.Stored.customMacroTags: { try JSONEncoder().encode(tags) }], defaults: defaults)
+        customMacroTags = tags
+    }
+
+    func deleteCustomMacroTag(_ id: String) throws {
+        let index = try customMacroTagIndex(id)
+        var backup = configurationBackup()
+        var tags = customMacroTags
+        tags.remove(at: index)
+        backup.customMacroTags = tags
+        for index in backup.macros.indices {
+            backup.macros[index].tagIDs.remove(id)
+        }
+        let recovery = SettingsStorage.configurationRecovery(defaults: defaults)
+        try SettingsStorage.commitConfiguration(backup, recovery: recovery, defaults: defaults)
+        isCommittingConfiguration = true
+        macros = backup.macros
+        customMacroTags = tags
+        isCommittingConfiguration = false
+    }
+
+    private func customMacroTagIndex(_ id: String) throws -> Int {
+        guard !MacroTag.all.contains(where: { $0.id == id }) else { throw MacroTagError.builtIn }
+        guard let index = customMacroTags.firstIndex(where: { $0.id == id }) else { throw MacroTagError.missing }
+        return index
+    }
+
     func initializeDefaultMacros(version: Int) {
         if version < DefaultMacros.version {
             macros = DefaultMacros.addingMissing(to: macros, since: version)
@@ -807,12 +847,14 @@ final class RemoteDashboardModel: ObservableObject {
 
     @discardableResult
     func addMacro(tagIDs: Set<String> = [MacroTag.general.id]) -> UUID {
-        let macro = SavedMacro(name: SavedMacro.uniqueName("新组合动作", existingNames: macros.map(\.name)), tagIDs: tagIDs)
+        let macro = SavedMacro(name: SavedMacro.uniqueName("新组合动作", existingNames: macros.map(\.name)),
+                               tagIDs: tagIDs.intersection(macroTags.map(\.id)))
         macros.append(macro)
         return macro.id
     }
 
     func updateMacroTags(_ tagIDs: Set<String>, for id: UUID) {
+        let tagIDs = tagIDs.intersection(macroTags.map(\.id))
         guard let index = macros.firstIndex(where: { $0.id == id }), macros[index].tagIDs != tagIDs else { return }
         macros[index].tagIDs = tagIDs
     }

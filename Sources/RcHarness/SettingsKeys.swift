@@ -31,6 +31,7 @@ enum SettingsKeys {
         static let profiles = "profiles"
         static let remoteKeyConfigurations = "remoteKeyConfigurations"
         static let macros = "macros"
+        static let customMacroTags = "customMacroTags"
         static let phrases = "phrases"
         static let phraseAssignments = "phraseAssignments"
         static let harnesses = "harnesses"

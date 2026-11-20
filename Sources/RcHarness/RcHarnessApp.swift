@@ -1001,6 +1001,18 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
                     }
                 }
                 if macroEditorPreview {
+                    try? dashboardModel.saveCustomMacroTag(name: "日常工作")
+                    try? dashboardModel.saveCustomMacroTag(name: "演示")
+                    let manager = NSHostingView(rootView: MacroTagManagementSheet(model: dashboardModel)
+                        .background(Color(nsColor: .windowBackgroundColor)))
+                    manager.frame.size = manager.fittingSize
+                    manager.layoutSubtreeIfNeeded()
+                    if let bitmap = manager.bitmapImageRepForCachingDisplay(in: manager.bounds) {
+                        manager.cacheDisplay(in: manager.bounds, to: bitmap)
+                        if let data = bitmap.representation(using: .png, properties: [:]) {
+                            try? data.write(to: directory.appendingPathComponent("macro-tag-management.png"))
+                        }
+                    }
                     for width in [636, 456, 240, 180] {
                         let tags = NSHostingView(rootView: MacroTagFilter(selection: .constant(Set(MacroTag.all.map(\.id))))
                             .frame(width: CGFloat(width))

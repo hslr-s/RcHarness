@@ -119,6 +119,59 @@ final class MacroTagTests: XCTestCase {
         XCTAssertEqual(model.macros, [original])
     }
 
+    func testCustomTagsPersistAndDeleteOnlyAssignments() throws {
+        let model = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
+        try model.saveCustomMacroTag(name: "  日常工作  ")
+        let tag = try XCTUnwrap(model.customMacroTags.first)
+        XCTAssertEqual(tag.name, "日常工作")
+        let id = model.addMacro(tagIDs: [tag.id, MacroTag.general.id])
+        model.update(ButtonMapping(action: .macro, referenceID: id.uuidString), for: .buttonA, trigger: .single)
+        let mapping = model.mapping
+        let original = try XCTUnwrap(model.macros.first { $0.id == id })
+        try model.saveCustomMacroTag(name: "办公室", id: tag.id)
+        XCTAssertEqual(model.macros.first { $0.id == id }, original)
+        XCTAssertEqual(model.customMacroTags, [MacroTag(id: tag.id, name: "办公室")])
+        let backup = try JSONDecoder().decode(SettingsBackup.self, from: JSONEncoder().encode(model.configurationBackup()))
+
+        try model.deleteCustomMacroTag(tag.id)
+        let restarted = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
+        var untagged = original
+        untagged.tagIDs = [MacroTag.general.id]
+        XCTAssertEqual(model.macros.first { $0.id == id }, untagged)
+        XCTAssertEqual(restarted.macros, model.macros)
+        XCTAssertEqual(model.mapping, mapping)
+        XCTAssertTrue(restarted.customMacroTags.isEmpty)
+
+        try model.applyConfiguration(backup)
+        XCTAssertEqual(model.macros.first { $0.id == id }, original)
+        XCTAssertEqual(model.customMacroTags, backup.customMacroTags)
+        model.previewConfigurationRecovery()
+        try model.confirmConfigurationImport(XCTUnwrap(model.pendingConfigurationImport).id)
+        XCTAssertTrue(model.customMacroTags.isEmpty)
+        XCTAssertEqual(model.macros.first { $0.id == id }, untagged)
+    }
+
+    func testBuiltInTagsAndDeletedAssignmentsCannotBeReintroduced() throws {
+        let model = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
+        XCTAssertThrowsError(try model.saveCustomMacroTag(name: "其它", id: "chatgpt"))
+        XCTAssertThrowsError(try model.deleteCustomMacroTag(MacroTag.general.id))
+        XCTAssertThrowsError(try model.saveCustomMacroTag(name: " ＣｈａｔＧＰＴ "))
+        XCTAssertThrowsError(try model.saveCustomMacroTag(name: "  "))
+        try model.saveCustomMacroTag(name: "演示")
+        let tag = try XCTUnwrap(model.customMacroTags.first)
+        let id = model.addMacro(tagIDs: [tag.id])
+        model.deleteMacro(id)
+        try model.deleteCustomMacroTag(tag.id)
+        model.undoDeletion()
+        XCTAssertEqual(model.macros.first { $0.id == id }?.tagIDs, [])
+        XCTAssertEqual(model.macroTags, MacroTag.all)
+
+        var backup = model.configurationBackup()
+        backup.customMacroTags = [MacroTag(id: "chatgpt", name: "其它")]
+        XCTAssertThrowsError(try model.applyConfiguration(backup))
+        XCTAssertEqual(model.macroTags, MacroTag.all)
+    }
+
     private func legacyData(_ macros: [SavedMacro]) throws -> Data {
         let objects = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(macros)) as? [[String: Any]])
         return try JSONSerialization.data(withJSONObject: objects.map { object in

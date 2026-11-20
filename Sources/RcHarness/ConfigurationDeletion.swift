@@ -256,11 +256,12 @@ extension RemoteDashboardModel {
             }
             backup.phrases.insert(phrase, at: deleted.position.insertionIndex(in: backup.phrases.map(\.id)))
             for input in assignments { backup.phraseAssignments?[input] = phrase.id }
-        case .macro(let macro):
+        case .macro(var macro):
             guard !backup.macros.contains(where: { $0.id == macro.id || $0.name.caseInsensitiveCompare(macro.name) == .orderedSame }) else {
                 postNotice("无法撤销：已有相同 ID 或名称的组合动作，请先处理冲突。", level: .error, source: .configurationDeletion)
                 return
             }
+            macro.tagIDs.formIntersection(macroTags.map(\.id))
             backup.macros.insert(macro, at: deleted.position.insertionIndex(in: backup.macros.map(\.id)))
         case .profile(let profile, let remoteID, let wasSelected):
             guard var configuration = backup.remoteKeyConfigurations?[remoteID] else {

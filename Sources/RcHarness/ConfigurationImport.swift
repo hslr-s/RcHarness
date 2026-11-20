@@ -56,7 +56,15 @@ struct PreparedConfiguration {
         }) ?? true else { throw SettingsBackupError.invalidFormat }
 
         let version = original.macroPresetsVersion ?? 0
-        let macros = DefaultMacros.addingMissing(to: SavedMacro.normalizingNames(in: original.macros), since: version)
+        let customTags: [MacroTag]
+        do { customTags = try MacroTag.validatedCustomTags(original.customMacroTags ?? []) }
+        catch { throw SettingsBackupError.invalidFormat }
+        let tagIDs = Set((MacroTag.all + customTags).map(\.id))
+        let macros = DefaultMacros.addingMissing(to: SavedMacro.normalizingNames(in: original.macros), since: version).map {
+            var macro = $0
+            macro.tagIDs.formIntersection(tagIDs)
+            return macro
+        }
         var configurations = (original.remoteKeyConfigurations ?? [:]).mapValues { $0.normalized() }
         isLegacy = configurations.isEmpty
         let current = configurations[remoteProfile.id]
@@ -100,6 +108,7 @@ struct PreparedConfiguration {
             macros: macros, phrases: original.phrases, harnesses: normalized.harnesses, globalButtons: globals,
             macroPresetsVersion: max(version, DefaultMacros.version), remoteKeyConfigurations: configurations)
         result.phraseAssignments = original.phraseAssignments ?? PhraseAssignments()
+        result.customMacroTags = customTags
         // This also rejects values that cannot be represented in the persisted snapshot.
         _ = try JSONEncoder().encode(result)
         backup = result
@@ -162,6 +171,7 @@ extension SettingsStorage {
             SettingsKeys.Stored.profiles: try encoder.encode(backup.profiles),
             SettingsKeys.Stored.harnesses: try encoder.encode(backup.harnesses ?? HarnessConfiguration.defaults),
             SettingsKeys.Stored.macros: try encoder.encode(backup.macros),
+            SettingsKeys.Stored.customMacroTags: try encoder.encode(backup.customMacroTags ?? []),
             SettingsKeys.Stored.phrases: try encoder.encode(backup.phrases),
             SettingsKeys.Stored.phraseAssignments: try encoder.encode(backup.phraseAssignments ?? PhraseAssignments()),
             SettingsKeys.Stored.globalButtons: try encoder.encode(backup.globalButtons ?? GlobalButtonSettings()),

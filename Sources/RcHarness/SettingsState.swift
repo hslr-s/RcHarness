@@ -552,6 +552,7 @@ struct SettingsBackup: Codable, Equatable {
     var globalButtons: GlobalButtonSettings? = nil
     var macroPresetsVersion: Int? = nil
     var remoteKeyConfigurations: [String: RemoteKeyConfiguration]? = nil
+    var customMacroTags: [MacroTag]? = nil
 }
 
 /// Returns `proposedName` (trimmed, or `fallback` when blank), adding " 2",
