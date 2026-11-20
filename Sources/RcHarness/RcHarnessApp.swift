@@ -113,6 +113,8 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
         }
         dashboardModel.onGainChange = { [weak self] in self?.voice.gainDB = Float($0) }
         voice.gainDB = Float(dashboardModel.gain)
+        dashboardModel.onGestureTimingChange = { [weak self] in self?.applyGestureTiming() }
+        applyGestureTiming()
         microphone.onStateChange = { [weak self] state in
             self?.dashboardModel?.audioOutputState = state
             if case .failed = state {
@@ -643,6 +645,13 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
 
     @objc private func toggleMode() {
         setOperationMode(mode == .mapping ? .native : .mapping)
+    }
+
+    private func applyGestureTiming() {
+        guard let dashboardModel else { return }
+        gestures.setTiming(doubleTapWindow: dashboardModel.doubleTapWindow,
+                           longPressDelay: dashboardModel.longPressDelay)
+        phrasePicker.setDoubleTapWindow(dashboardModel.doubleTapWindow)
     }
 
     private func setOperationMode(_ newMode: ControllerOperationMode) {

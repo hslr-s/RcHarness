@@ -23,11 +23,24 @@ final class RemoteGestureController {
             immediate = double.action == .disabled && long.action == .disabled
         }
     }
-    static let doubleTapWindow: TimeInterval = 0.3
-    static let longPressDelay: TimeInterval = 0.55
+    /// Defaults double as the TestClock reference used by gesture tests.
+    static let defaultDoubleTapWindow: TimeInterval = 0.2
+    static let defaultLongPressDelay: TimeInterval = 0.55
+    static let doubleTapWindowRange: ClosedRange<TimeInterval> = 0.1...0.4
+    static let longPressDelayRange: ClosedRange<TimeInterval> = 0.4...1.0
+    static func clampDoubleTapWindow(_ value: TimeInterval) -> TimeInterval {
+        min(doubleTapWindowRange.upperBound, max(doubleTapWindowRange.lowerBound, value))
+    }
+    static func clampLongPressDelay(_ value: TimeInterval) -> TimeInterval {
+        min(longPressDelayRange.upperBound, max(longPressDelayRange.lowerBound, value))
+    }
+    static let doubleTapWindow = defaultDoubleTapWindow
+    static let longPressDelay = defaultLongPressDelay
     static let rapidDeleteDelay: TimeInterval = 0.35
     static let rapidDeleteInterval: TimeInterval = 0.06
     private let schedule: RemoteVoiceSessionController.Scheduler
+    private(set) var configuredDoubleTapWindow: TimeInterval = RemoteGestureController.defaultDoubleTapWindow
+    private(set) var configuredLongPressDelay: TimeInterval = RemoteGestureController.defaultLongPressDelay
     private var sessions: [ControllerInput: Session] = [:]
     private var operationMode: ControllerOperationMode = .mapping
     // Modal actions need the originating input even after a delayed gesture.
@@ -35,6 +48,11 @@ final class RemoteGestureController {
 
     init(schedule: @escaping RemoteVoiceSessionController.Scheduler = RemoteVoiceSessionController.mainQueue) {
         self.schedule = schedule
+    }
+
+    func setTiming(doubleTapWindow: TimeInterval, longPressDelay: TimeInterval) {
+        configuredDoubleTapWindow = doubleTapWindow
+        configuredLongPressDelay = longPressDelay
     }
 
     func setOperationMode(_ mode: ControllerOperationMode) {
@@ -81,7 +99,7 @@ final class RemoteGestureController {
             else if session.longFired { sessions[input] = nil }
             else if session.second { tap(session.double, input: input, trigger: .double, session: session); sessions[input] = nil }
             else if session.double.action != .disabled {
-                session.work = schedule(Self.doubleTapWindow) { [weak self, weak session] in
+                session.work = schedule(configuredDoubleTapWindow) { [weak self, weak session] in
                     guard let self, let session, self.sessions[input] === session, !session.held else { return }
                     self.sessions[input] = nil
                     self.tap(session.single, input: input, trigger: .single, session: session)
@@ -94,7 +112,7 @@ final class RemoteGestureController {
         let mapping = session.long.action == .disabled && session.single.action == .rapidDelete
             ? session.single : session.long
         guard mapping.action != .disabled else { return }
-        session.work = schedule(Self.longPressDelay) { [weak self, weak session] in
+        session.work = schedule(configuredLongPressDelay) { [weak self, weak session] in
             guard let self, let session, self.sessions[input] === session, session.held else { return }
             session.longFired = true
             self.tap(mapping, input: input, trigger: .long, session: session)

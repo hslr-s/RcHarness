@@ -139,6 +139,32 @@ final class RemoteDashboardModel: ObservableObject {
             onGainChange?(gain)
         }
     }
+    @Published var doubleTapWindow: TimeInterval {
+        didSet {
+            let normalized = doubleTapWindow.isFinite
+                ? RemoteGestureController.clampDoubleTapWindow(doubleTapWindow)
+                : RemoteGestureController.defaultDoubleTapWindow
+            if doubleTapWindow != normalized {
+                doubleTapWindow = normalized
+                return
+            }
+            defaults.set(doubleTapWindow, forKey: SettingsKeys.doubleTapWindow)
+            onGestureTimingChange?()
+        }
+    }
+    @Published var longPressDelay: TimeInterval {
+        didSet {
+            let normalized = longPressDelay.isFinite
+                ? RemoteGestureController.clampLongPressDelay(longPressDelay)
+                : RemoteGestureController.defaultLongPressDelay
+            if longPressDelay != normalized {
+                longPressDelay = normalized
+                return
+            }
+            defaults.set(longPressDelay, forKey: SettingsKeys.longPressDelay)
+            onGestureTimingChange?()
+        }
+    }
     var voiceFnTap: Bool {
         get { remoteProfile.supportsVoiceTap && globalButtons.voiceFnTap }
         set {
@@ -217,6 +243,7 @@ final class RemoteDashboardModel: ObservableObject {
     var onToggleMode: (() -> Void)?
     var onAudioChange: (() -> Void)?
     var onGainChange: ((Double) -> Void)?
+    var onGestureTimingChange: (() -> Void)?
     var onVoiceTriggerChange: (() -> Void)?
     var onRemoteProfileChange: ((RemoteProfile) -> Void)?
     var onThemeModeChange: ((AppThemeMode) -> Void)?
@@ -250,6 +277,14 @@ final class RemoteDashboardModel: ObservableObject {
         selectedHarnessID = defaults.string(forKey: SettingsKeys.selectedHarnessID)
         let savedGain = defaults.double(forKey: SettingsKeys.gain)
         gain = savedGain.isFinite ? min(24, max(0, savedGain)) : 0
+        let savedDoubleTapWindow = defaults.double(forKey: SettingsKeys.doubleTapWindow)
+        doubleTapWindow = savedDoubleTapWindow > 0
+            ? RemoteGestureController.clampDoubleTapWindow(savedDoubleTapWindow)
+            : RemoteGestureController.defaultDoubleTapWindow
+        let savedLongPressDelay = defaults.double(forKey: SettingsKeys.longPressDelay)
+        longPressDelay = savedLongPressDelay > 0
+            ? RemoteGestureController.clampLongPressDelay(savedLongPressDelay)
+            : RemoteGestureController.defaultLongPressDelay
         outputUID = defaults.string(forKey: SettingsKeys.outputUID) ?? RemoteMicrophoneOutput.deviceUID
         showDockIcon = defaults.object(forKey: SettingsKeys.showDockIcon) as? Bool ?? true
         showKeyProfilePrefix = defaults.bool(forKey: SettingsKeys.showKeyProfilePrefix)
