@@ -139,6 +139,32 @@ final class RemoteDashboardModel: ObservableObject {
             onGainChange?(gain)
         }
     }
+    @Published var doubleTapWindow: TimeInterval {
+        didSet {
+            let normalized = doubleTapWindow.isFinite
+                ? RemoteGestureController.clampDoubleTapWindow(doubleTapWindow)
+                : RemoteGestureController.defaultDoubleTapWindow
+            if doubleTapWindow != normalized {
+                doubleTapWindow = normalized
+                return
+            }
+            defaults.set(doubleTapWindow, forKey: SettingsKeys.doubleTapWindow)
+            onGestureTimingChange?()
+        }
+    }
+    @Published var longPressDelay: TimeInterval {
+        didSet {
+            let normalized = longPressDelay.isFinite
+                ? RemoteGestureController.clampLongPressDelay(longPressDelay)
+                : RemoteGestureController.defaultLongPressDelay
+            if longPressDelay != normalized {
+                longPressDelay = normalized
+                return
+            }
+            defaults.set(longPressDelay, forKey: SettingsKeys.longPressDelay)
+            onGestureTimingChange?()
+        }
+    }
     var voiceFnTap: Bool {
         get { remoteProfile.supportsVoiceTap && globalButtons.voiceFnTap }
         set {
@@ -217,6 +243,7 @@ final class RemoteDashboardModel: ObservableObject {
     var onToggleMode: (() -> Void)?
     var onAudioChange: (() -> Void)?
     var onGainChange: ((Double) -> Void)?
+    var onGestureTimingChange: (() -> Void)?
     var onVoiceTriggerChange: (() -> Void)?
     var onRemoteProfileChange: ((RemoteProfile) -> Void)?
     var onThemeModeChange: ((AppThemeMode) -> Void)?
@@ -250,6 +277,14 @@ final class RemoteDashboardModel: ObservableObject {
         selectedHarnessID = defaults.string(forKey: SettingsKeys.selectedHarnessID)
         let savedGain = defaults.double(forKey: SettingsKeys.gain)
         gain = savedGain.isFinite ? min(24, max(0, savedGain)) : 0
+        let savedDoubleTapWindow = defaults.double(forKey: SettingsKeys.doubleTapWindow)
+        doubleTapWindow = savedDoubleTapWindow > 0
+            ? RemoteGestureController.clampDoubleTapWindow(savedDoubleTapWindow)
+            : RemoteGestureController.defaultDoubleTapWindow
+        let savedLongPressDelay = defaults.double(forKey: SettingsKeys.longPressDelay)
+        longPressDelay = savedLongPressDelay > 0
+            ? RemoteGestureController.clampLongPressDelay(savedLongPressDelay)
+            : RemoteGestureController.defaultLongPressDelay
         outputUID = defaults.string(forKey: SettingsKeys.outputUID) ?? RemoteMicrophoneOutput.deviceUID
         showDockIcon = defaults.object(forKey: SettingsKeys.showDockIcon) as? Bool ?? true
         showKeyProfilePrefix = defaults.bool(forKey: SettingsKeys.showKeyProfilePrefix)
@@ -505,6 +540,9 @@ final class RemoteDashboardModel: ObservableObject {
     }
     func resetMapping() {
         if let profile = profiles.first(where: { $0.id == selectedProfileID }),
+           profile.id == SavedKeyProfile.mouseID {
+            mapping = .defaults(for: remoteProfile, macros: macros).mouseMode
+        } else if let profile = profiles.first(where: { $0.id == selectedProfileID }),
            profile.id != SavedKeyProfile.defaultID,
            let harness = profile.builtInHarness
                 ?? harnesses.first(where: { $0.id == "chatgpt" && $0.profileID == profile.id }) {
@@ -562,7 +600,8 @@ final class RemoteDashboardModel: ObservableObject {
     }
     @discardableResult
     func renameProfile(_ id: UUID, name: String) -> Bool {
-        guard let index = profiles.firstIndex(where: { $0.id == id }), id != SavedKeyProfile.defaultID else { return false }
+        guard let index = profiles.firstIndex(where: { $0.id == id }),
+              id != SavedKeyProfile.defaultID, id != SavedKeyProfile.mouseID else { return false }
         if let error = profileNameError(name, excluding: id) {
             postNotice(error, level: .error)
             return false
@@ -578,7 +617,8 @@ final class RemoteDashboardModel: ObservableObject {
         selectKeyProfile(profile, harnessID: nil)
     }
     func matchApplication(_ path: String?, bundleIdentifier: String? = nil) {
-        guard !editorVisible else { return }
+        // Mouse mode owns the whole keymap. Switching apps must not swap it.
+        guard !editorVisible, operationMode != .mouse else { return }
         let identifier = bundleIdentifier ?? path.flatMap { Bundle(path: $0)?.bundleIdentifier }
         if let harness = harnesses.first(where: {
             $0.isEnabled && $0.profileID != nil && $0.matches(applicationPath: path, bundleIdentifier: identifier)
@@ -668,7 +708,7 @@ final class RemoteDashboardModel: ObservableObject {
         postNotice("已移除 \(harness.name) Harness", level: .success)
     }
     func canDeleteProfile(_ id: UUID) -> Bool {
-        guard id != SavedKeyProfile.defaultID,
+        guard id != SavedKeyProfile.defaultID, id != SavedKeyProfile.mouseID,
               let profile = profiles.first(where: { $0.id == id }),
               !harnesses.contains(where: { $0.profileID == id }) else { return false }
         return profile.builtInHarness == nil
@@ -680,6 +720,14 @@ final class RemoteDashboardModel: ObservableObject {
     /// Mapping of the default profile, used when no Harness matches.
     var defaultMapping: RemoteMapping {
         profiles.first(where: { $0.id == SavedKeyProfile.defaultID })?.mapping ?? .defaults
+    }
+
+    var mouseProfile: SavedKeyProfile? { profiles.first { $0.id == SavedKeyProfile.mouseID } }
+
+    /// Effective mapping used while mouse mode is active. Edits to this
+    /// profile never change the default scheme, and global buttons stay live.
+    var effectiveMouseMapping: RemoteMapping {
+        globalButtons.applying(to: mouseProfile?.mapping ?? defaultMapping.mouseMode, profile: remoteProfile)
     }
 
     /// Deduplicate, ensure the default profile exists first, and drop dangling

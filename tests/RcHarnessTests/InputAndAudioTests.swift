@@ -104,7 +104,7 @@ final class InputAndAudioTests: XCTestCase {
         sender.send(ButtonMapping(action: .pointerRight), pressed: false)
         XCTAssertEqual(clicks.map(\.location), [location, location])
         XCTAssertEqual(clicks.map(\.type), [.leftMouseDown, .leftMouseUp])
-        XCTAssertEqual(movements, [CGPoint(x: -900, y: 388), CGPoint(x: -888, y: 400)])
+        XCTAssertEqual(movements, [CGPoint(x: -900, y: 390), CGPoint(x: -890, y: 400)])
     }
 
     func testShowAllWindowsPreservesArrowFlagsRequiredBySystemShortcutMatching() throws {

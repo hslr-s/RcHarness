@@ -283,47 +283,172 @@ struct LivePressIndicator: View {
 }
 
 struct ShortcutBindingEditor: View {
+    private enum RecordingStyle: String, CaseIterable, Identifiable {
+        case split = "分步录制"
+        case combined = "一次录制"
+        var id: String { rawValue }
+    }
+
     @Binding var shortcut: RecordedShortcut?
     @Binding var capturing: Bool
+
+    @State private var style: RecordingStyle = .combined
+    @State private var modifier: RecordedShortcut?
+    @State private var key: RecordedShortcut?
+    @State private var capturingModifier = false
+    @State private var capturingKey = false
 
     init(shortcut: Binding<RecordedShortcut?>, capturing: Binding<Bool>) {
         _shortcut = shortcut
         _capturing = capturing
+        let parts = ShortcutRecordingSession.split(shortcut.wrappedValue)
+        _modifier = State(initialValue: parts.modifier)
+        _key = State(initialValue: parts.key)
     }
 
     init(shortcut: Binding<RecordedShortcut>, capturing: Binding<Bool>) {
-        _shortcut = Binding(get: { shortcut.wrappedValue }, set: { if let value = $0 { shortcut.wrappedValue = value } })
-        _capturing = capturing
+        let optional = Binding<RecordedShortcut?>(
+            get: { shortcut.wrappedValue },
+            set: { if let value = $0 { shortcut.wrappedValue = value } }
+        )
+        self.init(shortcut: optional, capturing: capturing)
+    }
+
+    private func assemble() {
+        shortcut = ShortcutRecordingSession.assembled(modifier: modifier, key: key)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: SettingsStyle.Spacing.inline) {
-            HStack {
-                Text(shortcut?.label ?? "尚未设置快捷键").font(.system(size: 13, design: .monospaced))
-                Spacer()
-                Button(capturing ? "取消录制" : "录制快捷键") {
-                    capturing.toggle()
+            if style == .combined {
+                HStack {
+                    Text(shortcut?.label ?? "尚未设置快捷键").font(.system(size: 13, design: .monospaced))
+                    Spacer()
+                    Picker("录制方式", selection: $style) {
+                        ForEach(RecordingStyle.allCases) { Text($0.rawValue).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .fixedSize()
+                    .onChange(of: style) {
+                        capturing = false
+                        capturingModifier = false
+                        capturingKey = false
+                    }
+                    Button(capturing ? "取消录制" : "录制快捷键") { capturing.toggle() }
+                }
+                if capturing {
+                    Text("按下并松开完整快捷键（可包含多个修饰键）；离开窗口将取消。")
+                        .font(.caption).foregroundStyle(Color.accentColor).fixedSize(horizontal: false, vertical: true)
+                    ShortcutCapture(mode: .full, onCapture: {
+                        shortcut = $0
+                        capturing = false
+                    }, onCancel: { capturing = false }).frame(height: 1)
+                }
+            } else {
+                HStack {
+                    Text("修饰键").font(SettingsStyle.Typography.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Picker("录制方式", selection: $style) {
+                        ForEach(RecordingStyle.allCases) { Text($0.rawValue).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .fixedSize()
+                    .onChange(of: style) {
+                        capturing = false
+                        capturingModifier = false
+                        capturingKey = false
+                    }
+                    Button(capturingModifier ? "取消录制" : (modifier == nil ? "录制修饰键" : "重新录制")) {
+                        capturingKey = false
+                        capturingModifier.toggle()
+                        capturing = capturingModifier
+                    }
+                }
+                HStack {
+                    Text(modifier?.label ?? "未设置（可一次录制 ⌃⇧⌥⌘ 中多个键）")
+                        .font(.system(size: 13, design: .monospaced))
+                    Spacer()
+                    if modifier != nil {
+                        Button("清除") { modifier = nil; assemble() }
+                    }
+                }
+                if capturingModifier {
+                    Text("按下并松开一个或多个修饰键；离开窗口将取消。")
+                        .font(.caption).foregroundStyle(Color.accentColor).fixedSize(horizontal: false, vertical: true)
+                    ShortcutCapture(mode: .modifiers, onCapture: {
+                        modifier = $0
+                        capturingModifier = false
+                        capturing = false
+                        assemble()
+                    }, onCancel: {
+                        capturingModifier = false
+                        capturing = false
+                    }).frame(height: 1)
+                }
+
+                Divider().padding(.vertical, 2)
+
+                HStack {
+                    Text("主键").font(SettingsStyle.Typography.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Button(capturingKey ? "取消录制" : (key == nil ? "录制主键" : "重新录制")) {
+                        capturingModifier = false
+                        capturingKey.toggle()
+                        capturing = capturingKey
+                    }
+                }
+                HStack {
+                    Text(key?.label ?? "未设置（如 ←、K、空格）")
+                        .font(.system(size: 13, design: .monospaced))
+                    Spacer()
+                    if key != nil {
+                        Button("清除") { key = nil; assemble() }
+                    }
+                }
+                if capturingKey {
+                    Text("按下并松开一个普通键；修饰键请在上面单独录制。")
+                        .font(.caption).foregroundStyle(Color.accentColor).fixedSize(horizontal: false, vertical: true)
+                    ShortcutCapture(mode: .key, onCapture: {
+                        key = $0
+                        capturingKey = false
+                        capturing = false
+                        assemble()
+                    }, onCancel: {
+                        capturingKey = false
+                        capturing = false
+                    }).frame(height: 1)
+                }
+
+                if let shortcut {
+                    HStack(spacing: SettingsStyle.Spacing.inline) {
+                        Text("组合结果").font(SettingsStyle.Typography.caption).foregroundStyle(.secondary)
+                        Text(shortcut.label).font(.system(size: 13, weight: .semibold, design: .monospaced))
+                    }
                 }
             }
-            if capturing {
-                Text("请按下并松开快捷键；离开窗口将取消录制。")
-                    .font(.caption).foregroundStyle(Color.accentColor).fixedSize(horizontal: false, vertical: true)
-                ShortcutCapture(onCapture: {
-                    shortcut = $0
-                    capturing = false
-                }, onCancel: { capturing = false }).frame(height: 1)
+
+        }
+        .onChange(of: shortcut) {
+            guard let newValue = shortcut else {
+                if modifier != nil || key != nil { modifier = nil; key = nil }
+                return
             }
+            guard newValue != ShortcutRecordingSession.assembled(modifier: modifier, key: key) else { return }
+            let parts = ShortcutRecordingSession.split(newValue)
+            modifier = parts.modifier
+            key = parts.key
         }
     }
 }
 
 @MainActor
 struct ShortcutCapture: NSViewRepresentable {
+    var mode: ShortcutRecordingSession.Mode = .full
     var onCapture: (RecordedShortcut) -> Void
     var onCancel: () -> Void
 
     func makeNSView(context: Context) -> CaptureField {
-        let view = CaptureField()
+        let view = CaptureField(session: ShortcutRecordingSession(mode: mode))
         updateCallbacks(view)
         return view
     }

@@ -17,6 +17,7 @@ final class PhrasePickerModel: ObservableObject {
         init(_ phrase: SavedPhrase) { self.phrase = phrase }
     }
     private let schedule: RemoteVoiceSessionController.Scheduler
+    private var doubleTapWindow: TimeInterval = RemoteGestureController.doubleTapWindow
     private var heldInputs: Set<ControllerInput> = []
     private var consumedInputs: Set<ControllerInput> = []
     private var sessions: [ControllerInput: Session] = [:]
@@ -24,6 +25,8 @@ final class PhrasePickerModel: ObservableObject {
     init(schedule: @escaping RemoteVoiceSessionController.Scheduler = RemoteVoiceSessionController.mainQueue) {
         self.schedule = schedule
     }
+
+    func setDoubleTapWindow(_ value: TimeInterval) { doubleTapWindow = value }
 
     func present(phrases: [SavedPhrase], assignments: PhraseAssignments) {
         dismiss()
@@ -86,7 +89,7 @@ final class PhrasePickerModel: ObservableObject {
             if session.second {
                 output(session.phrase, language: .english)
             } else {
-                session.work = schedule(RemoteGestureController.doubleTapWindow) { [weak self, weak session] in
+                session.work = schedule(doubleTapWindow) { [weak self, weak session] in
                     guard let self, let session, self.isPresented, self.sessions[input] === session else { return }
                     self.output(session.phrase, language: .chinese)
                 }

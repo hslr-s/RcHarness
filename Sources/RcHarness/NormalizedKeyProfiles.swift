@@ -21,6 +21,13 @@ struct NormalizedKeyProfiles {
         } else {
             profiles.insert(SavedKeyProfile(id: SavedKeyProfile.defaultID, name: "默认方案", mapping: defaultMapping), at: 0)
         }
+        // Mouse mode has its own editable scheme. Seed it once from the default
+        // scheme so later edits to either side never leak into the other.
+        if !profiles.contains(where: { $0.id == SavedKeyProfile.mouseID }) {
+            let mouse = SavedKeyProfile(id: SavedKeyProfile.mouseID, name: "鼠标模式方案",
+                                        mapping: defaultMapping.mouseMode)
+            profiles.insert(mouse, at: min(1, profiles.count))
+        }
         if let selected = harnesses.first(where: { $0.id == selectedHarnessID }) {
             selectedHarnessID = selected.migratingRenamedBuiltIn().id
         }

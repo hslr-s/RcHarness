@@ -228,18 +228,37 @@ struct RemoteDashboardView: View {
         ))
         .toggleStyle(SettingsSwitchStyle()).controlSize(.small).font(SettingsStyle.Typography.body)
         .fixedSize()
-        .help("关闭后，遥控器按原生方式工作；重新开启此开关可恢复映射。")
-        .accessibilityHint("关闭后，遥控器按原生方式工作；重新开启此开关可恢复映射。")
+        .help("关闭后，遥控器按原生方式工作；重新开启此开关可恢复映射。鼠标模式下再按进入键即可退出。")
+        .accessibilityHint("关闭后，遥控器按原生方式工作；重新开启此开关可恢复映射。鼠标模式下再按进入键即可退出。")
     }
 
     private var deviceCard: some View {
-        RemoteProfileMenu(model: model) {
-            deviceCardLabel
+        HStack(spacing: 0) {
+            RemoteProfileMenu(model: model) {
+                deviceCardLabel
+            }
+            .help("更换遥控器")
+            .accessibilityLabel("更换遥控器，当前：\(model.remoteProfile.shortName)")
+            .accessibilityHint("选择要使用的遥控器型号")
+
+            Divider().frame(width: 1, height: 24).padding(.horizontal, 2)
+            Button {
+                model.rescan()
+            } label: {
+                Image(systemName: "arrow.clockwise")
+                    .font(SettingsStyle.Typography.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 20, height: 24)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("重新连接遥控器")
+            .accessibilityLabel("重新连接遥控器")
+            .padding(.trailing, SettingsStyle.controlPadding)
         }
         .fixedSize()
-        .help("更换遥控器")
-        .accessibilityLabel("更换遥控器，当前：\(model.remoteProfile.shortName)")
-        .accessibilityHint("选择要使用的遥控器型号")
+        .background(SettingsStyle.subtle, in: RoundedRectangle(cornerRadius: SettingsStyle.controlRadius))
+        .overlay { RoundedRectangle(cornerRadius: SettingsStyle.controlRadius).strokeBorder(Color.primary.opacity(0.1)) }
     }
 
     private var deviceCardLabel: some View {
@@ -263,10 +282,8 @@ struct RemoteDashboardView: View {
                 .padding(.leading, SettingsStyle.controlPadding)
         }
         .foregroundStyle(.primary)
-        .padding(SettingsStyle.controlPadding)
-        .background(SettingsStyle.subtle, in: RoundedRectangle(cornerRadius: SettingsStyle.controlRadius))
-        .overlay { RoundedRectangle(cornerRadius: SettingsStyle.controlRadius).strokeBorder(Color.primary.opacity(0.1)) }
-        .contentShape(RoundedRectangle(cornerRadius: SettingsStyle.controlRadius))
+        .padding(.vertical, SettingsStyle.controlPadding)
+        .padding(.leading, SettingsStyle.controlPadding)
     }
 
     @ViewBuilder private var pageContent: some View {

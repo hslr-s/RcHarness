@@ -17,7 +17,8 @@ struct RemoteProfileMenu<Label: View>: View {
 
 @MainActor
 enum RemoteProfileMenuContent {
-    static func make(model: RemoteDashboardModel, target: AnyObject?, action: Selector?) -> NSMenu {
+    static func make(model: RemoteDashboardModel, target: AnyObject?, action: Selector?,
+                     reconnectTarget: AnyObject? = nil, reconnectAction: Selector? = nil) -> NSMenu {
         let menu = NSMenu(title: "更换遥控器")
         menu.autoenablesItems = false
         let font = NSFont.menuFont(ofSize: 0)
@@ -48,6 +49,13 @@ enum RemoteProfileMenuContent {
             let hint = NSMenuItem(title: "当前仅支持此型号", action: nil, keyEquivalent: "")
             hint.isEnabled = false
             menu.addItem(hint)
+        }
+        if let reconnectTarget, let reconnectAction {
+            menu.addItem(.separator())
+            let reconnectItem = NSMenuItem(title: "重新连接遥控器", action: reconnectAction, keyEquivalent: "")
+            reconnectItem.target = reconnectTarget
+            reconnectItem.toolTip = "重新扫描并连接遥控器"
+            menu.addItem(reconnectItem)
         }
         return menu
     }
@@ -84,7 +92,8 @@ private struct RemoteProfileMenuAnchor: NSViewRepresentable {
         init(model: RemoteDashboardModel) { self.model = model }
 
         @objc func openMenu(_ sender: NSButton) {
-            let menu = RemoteProfileMenuContent.make(model: model, target: self, action: #selector(selectRemote(_:)))
+            let menu = RemoteProfileMenuContent.make(model: model, target: self, action: #selector(selectRemote(_:)),
+                                                      reconnectTarget: self, reconnectAction: #selector(reconnectRemote(_:)))
             // NSButton uses flipped coordinates: its bottom edge is maxY.
             let bottom = sender.isFlipped ? sender.bounds.maxY + 5 : sender.bounds.minY - 5
             menu.popUp(positioning: nil, at: NSPoint(x: sender.bounds.minX, y: bottom), in: sender)
@@ -93,6 +102,10 @@ private struct RemoteProfileMenuAnchor: NSViewRepresentable {
         @objc private func selectRemote(_ sender: NSMenuItem) {
             guard let id = sender.representedObject as? String else { return }
             model.selectRemoteProfile(id)
+        }
+
+        @objc private func reconnectRemote(_ sender: NSMenuItem) {
+            model.rescan()
         }
     }
 }

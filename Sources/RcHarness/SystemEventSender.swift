@@ -64,23 +64,56 @@ final class SystemEventSender {
     private var keyUsesFunctionSource: [CGKeyCode: Bool] = [:]
     private var heldMouseButtons: [UInt32: Int] = [:]
     private var heldMediaKeys: [Int: Int] = [:]
+    private let monotonicTime: () -> CFTimeInterval
+
+    /// Consecutive pointer steps ramp up linearly while a direction is held.
+    private struct PointerRepeat {
+        var action: RemoteAction
+        var startedAt: CFTimeInterval
+        var lastStepAt: CFTimeInterval
+    }
+    private var pointerRepeat: PointerRepeat?
+    static let pointerBaseStep: CGFloat = 10
+    static let pointerMaxStep: CGFloat = 80
+    static let pointerAccelerationPerSecond: CGFloat = 20
+    /// Hold longer than this before the step size starts growing, so a quick
+    /// tap is always exactly one base step.
+    static let pointerHoldDelay: CFTimeInterval = 0.18
+    /// A gap above this ends the run (a new press restarts the ramp).
+    static let pointerRepeatGap: CFTimeInterval = 0.08
 
     private var heldModifiers: CGEventFlags {
         heldKeys.keys.reduce(CGEventFlags()) { $0.union(CGEventFlags(rawValue: $1.flags)) }
     }
 
     init(
-        cursorLocation: @escaping () -> CGPoint = { CGEvent(source: nil)?.location ?? .zero },
+        cursorLocation: @escaping () -> CGPoint = {
+            // NSEvent.mouseLocation is Cocoa global (origin bottom-left, y up);
+            // CGEvent uses the primary screen's top-left origin, y down.
+            let cocoa = NSEvent.mouseLocation
+            let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
+            return CGPoint(x: cocoa.x, y: primaryHeight - cocoa.y)
+        },
         postEvent: @escaping (CGEvent) -> Void = { $0.post(tap: .cghidEventTap) },
-        movePointer: @escaping (CGPoint) -> Void = { CGWarpMouseCursorPosition($0) },
+        movePointer: ((CGPoint) -> Void)? = nil,
         openApplication: @escaping (URL) -> Void = { NSWorkspace.shared.open($0) },
-        desktopController: any DesktopController = SystemDesktopController.shared
+        desktopController: any DesktopController = SystemDesktopController.shared,
+        monotonicTime: @escaping () -> CFTimeInterval = CFAbsoluteTimeGetCurrent
     ) {
         self.cursorLocation = cursorLocation
         self.postEvent = postEvent
-        self.movePointer = movePointer
+        self.movePointer = movePointer ?? { point in
+            // CGWarpMouseCursorPosition moves the cursor but emits no mouse
+            // event, so apps never update hover state. A real mouseMoved event
+            // keeps hover, tooltips and cursor feedback in sync. Going through
+            // postEvent also keeps all synthesized output observable in tests.
+            guard let event = CGEvent(mouseEventSource: nil, mouseType: .mouseMoved,
+                                      mouseCursorPosition: point, mouseButton: .left) else { return }
+            postEvent(event)
+        }
         self.openApplication = openApplication
         self.desktopController = desktopController
+        self.monotonicTime = monotonicTime
     }
 
     func send(_ mapping: ButtonMapping, pressed: Bool) {
@@ -115,10 +148,10 @@ final class SystemEventSender {
             desktopController.toggle()
         case .mouseLeft: mouse(.left, pressed: pressed)
         case .mouseRight: mouse(.right, pressed: pressed)
-        case .pointerUp: move(0, -12, pressed: pressed)
-        case .pointerDown: move(0, 12, pressed: pressed)
-        case .pointerLeft: move(-12, 0, pressed: pressed)
-        case .pointerRight: move(12, 0, pressed: pressed)
+        case .pointerUp: movePointerStep(mapping.action, dx: 0, dy: -1, pressed: pressed)
+        case .pointerDown: movePointerStep(mapping.action, dx: 0, dy: 1, pressed: pressed)
+        case .pointerLeft: movePointerStep(mapping.action, dx: -1, dy: 0, pressed: pressed)
+        case .pointerRight: movePointerStep(mapping.action, dx: 1, dy: 0, pressed: pressed)
         case .scrollUp: scroll(4, pressed: pressed)
         case .scrollDown: scroll(-4, pressed: pressed)
         case .recordedShortcut:
@@ -129,8 +162,8 @@ final class SystemEventSender {
         case .volumeDown: mediaKey(MediaKey.soundDown, pressed: pressed)
         case .mute: mediaKey(MediaKey.mute, pressed: pressed)
         case .playPause: mediaKey(MediaKey.play, pressed: pressed)
-        case .phrase, .macro, .switchToNativeMode, .openHarnessSwitcher, .openPhrases, .switchApplications,
-             .focusChatGPT, .focusClaude, .focusCursor, .focusDeepSeek, .focusWorkBuddy, .focusOpenCode, .disabled: break
+        case .phrase, .macro, .switchToNativeMode, .switchToMouseMode, .openHarnessSwitcher, .openPhrases, .switchApplications,
+             .focusChatGPT, .focusClaude, .focusCursor, .focusDeepSeek, .focusWorkBuddy, .focusOpenCode, .showShortcutHelp, .disabled: break
         }
     }
 
@@ -204,6 +237,25 @@ final class SystemEventSender {
             event.flags = heldModifiers
             postEvent(event)
         }
+    }
+
+    /// Repeated steps in the same direction grow linearly from the base step
+    /// until the cap. Releasing or changing direction starts a fresh ramp.
+    private func movePointerStep(_ action: RemoteAction, dx: CGFloat, dy: CGFloat, pressed: Bool) {
+        guard pressed else { return }
+        let now = monotonicTime()
+        let step: CGFloat
+        if let active = pointerRepeat, active.action == action,
+           now >= active.lastStepAt, now - active.lastStepAt <= Self.pointerRepeatGap {
+            let held = max(0, now - active.startedAt - Self.pointerHoldDelay)
+            step = min(Self.pointerMaxStep,
+                       Self.pointerBaseStep + CGFloat(held) * Self.pointerAccelerationPerSecond)
+            pointerRepeat = PointerRepeat(action: action, startedAt: active.startedAt, lastStepAt: now)
+        } else {
+            step = Self.pointerBaseStep
+            pointerRepeat = PointerRepeat(action: action, startedAt: now, lastStepAt: now)
+        }
+        move(dx * step, dy * step, pressed: true)
     }
 
     private func move(_ x: CGFloat, _ y: CGFloat, pressed: Bool) {

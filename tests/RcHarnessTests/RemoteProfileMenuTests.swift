@@ -84,4 +84,18 @@ final class RemoteProfileMenuTests: XCTestCase {
         model.setConnectedRemoteProfiles([])
         XCTAssertFalse(model.availableRemoteProfiles.contains { model.isRemoteConnected($0) })
     }
+
+    func testMenuIncludesReconnectItemWhenActionProvided() {
+        let suite = "RcHarness.RemoteMenuReconnectTests." + UUID().uuidString
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let model = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
+        let menu = RemoteProfileMenuContent.make(model: model, target: nil, action: nil,
+                                                  reconnectTarget: self, reconnectAction: #selector(reconnect))
+        XCTAssertEqual(menu.items.last?.title, "重新连接遥控器")
+        XCTAssertTrue(menu.items.last?.isEnabled ?? false)
+        XCTAssertTrue((menu.items.last?.target as? XCTestCase) === self)
+    }
+
+    @objc private func reconnect() {}
 }

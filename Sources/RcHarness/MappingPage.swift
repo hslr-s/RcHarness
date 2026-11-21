@@ -53,7 +53,7 @@ struct MappingPage: View {
                     }
                     .frame(maxWidth: 360)
                     .help("仅显示「\(model.remoteProfile.shortName)」的按键方案")
-                    if let id = model.selectedProfileID, id != SavedKeyProfile.defaultID {
+                    if let id = model.selectedProfileID, id != SavedKeyProfile.defaultID, id != SavedKeyProfile.mouseID {
                         Button(action: onRenameProfile) { Image(systemName: "pencil") }
                             .buttonStyle(.bordered)
                             .help("重命名当前按键方案")
@@ -387,6 +387,13 @@ struct MappingFooter: View {
         HStack(spacing: SettingsStyle.Spacing.groups) {
             Label(model.isConnected ? "按键功能已连接" : "等待遥控器连接", systemImage: "keyboard")
                 .font(SettingsStyle.Typography.caption).foregroundStyle(.secondary)
+            Button {
+                model.rescan()
+            } label: {
+                Label("重新连接", systemImage: "arrow.clockwise")
+            }
+            .controlSize(.small)
+            .help("重新扫描并连接遥控器")
             Divider().frame(height: 30)
             Button("设置全局按键") { model.page = .about }
             Spacer()
@@ -514,7 +521,7 @@ struct MappingEditorSheet: View {
     }
 }
 
-private struct MappingConnectors: View {
+struct MappingConnectors: View {
     @Environment(\.colorScheme) private var colorScheme
     let layout: MappingLayout
     let emphasizedInputs: Set<ControllerInput>
@@ -662,7 +669,7 @@ struct ActionMappingEditor: View {
         let system: [RemoteAction] = [.volumeUp, .volumeDown, .mute, .playPause, .showAllWindows] + RemoteAction.harnessFocusActions
             + (SystemDesktopController.shared.isSupported ? [.showDesktop] : [])
             + [.mouseLeft, .mouseRight, .pointerUp, .pointerDown, .pointerLeft, .pointerRight, .scrollUp, .scrollDown]
-            + (parentMacroID == nil ? [.switchToNativeMode, .switchApplications, .openHarnessSwitcher, .openPhrases] : [])
+            + (parentMacroID == nil ? [.switchToNativeMode, .switchToMouseMode, .switchApplications, .openHarnessSwitcher, .openPhrases, .showShortcutHelp] : [])
         let custom: [RemoteAction] = [.recordedShortcut, .openApplication, .phrase, .macro]
         let filtered: [RemoteAction]
         switch filter {
@@ -691,8 +698,18 @@ struct ActionMappingEditor: View {
                 Text("按住连续退格，松开即停止。可绑定到长按手势，保留单击的原有动作；双击或组合动作中执行一次退格。")
                     .font(.caption).foregroundStyle(.secondary)
             }
+            if value.action.supportsRepeatWhileHeld {
+                Toggle("按住连续触发", isOn: Binding(get: { value.repeatWhileHeld }, set: { value.repeatWhileHeld = $0 }))
+                    .toggleStyle(SettingsSwitchStyle()).controlSize(.small)
+                Text("按住后按连发间隔重复触发，松开即停止；不影响单击和双击的判定。")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             if value.action == .switchToNativeMode {
                 Text("关闭遥控器映射，恢复原生按键。返回映射模式时，请在主面板开启「启用遥控器映射」，或点击菜单栏的模式项。")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            if value.action == .switchToMouseMode {
+                Text("进入模拟鼠标模式，使用「鼠标模式方案」的按键映射。再按一次这个键即可退出；鼠标模式期间切换应用不会切换方案。避免与全局按键使用同一个实体键。")
                     .font(.caption).foregroundStyle(.secondary)
             }
             if value.action == .showDesktop && SystemDesktopController.shared.isSupported {
@@ -709,6 +726,10 @@ struct ActionMappingEditor: View {
             }
             if value.action == .openPhrases {
                 Text("唤出独立常用语浮层。上下左右和确认键各对应一条常用语，单击输入内容1，双击输入内容2；返回或主页关闭。")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            if value.action == .showShortcutHelp {
+                Text("显示当前模式的按键速查界面，按任意遥控器按键或键盘按键关闭。原生模式下不执行映射动作。")
                     .font(.caption).foregroundStyle(.secondary)
             }
             if value.action == .recordedShortcut {

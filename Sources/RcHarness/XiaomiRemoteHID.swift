@@ -156,7 +156,7 @@ final class XiaomiRemoteHIDManager {
 
     func setOperationMode(_ mode: ControllerOperationMode) {
         operationMode = mode
-        volumeGuard.update(mapping: mode == .mapping)
+        volumeGuard.update(mapping: mode != .native)
     }
 
     var onConnectionChange: ((Bool) -> Void)?
@@ -212,7 +212,7 @@ final class XiaomiRemoteHIDManager {
         }
 
         self.manager = manager
-        volumeGuard.update(mapping: operationMode == .mapping)
+        volumeGuard.update(mapping: operationMode != .native)
         // IOHIDManager may not replay a matching callback for devices that were
         // already connected before the manager was opened. Register those
         // devices explicitly so launch order does not affect detection.
@@ -277,7 +277,7 @@ final class XiaomiRemoteHIDManager {
         updateConnectedProfiles(RemoteHIDPresence.connectedProfiles(devices: snapshot, profiles: presenceProfiles,
                                                                    confirmedModelNumber: modelNumber))
         for device in devices { updateDevice(device, candidates: devices) }
-        volumeGuard.update(mapping: operationMode == .mapping)
+        volumeGuard.update(mapping: operationMode != .native)
     }
 
     private var presenceProfiles: [RemoteProfile] {
@@ -316,7 +316,7 @@ final class XiaomiRemoteHIDManager {
         parsers[id] = XiaomiRemoteHIDParser(profile: profile)
         parsers[id]?.voiceMode = voiceMode
         Log.hid.info("Remote HID accepted model=\(deviceModel ?? "BLE confirmed", privacy: .public) profile=\(profile.id, privacy: .public)")
-        volumeGuard.update(mapping: operationMode == .mapping)
+        volumeGuard.update(mapping: operationMode != .native)
         // The guard keeps retrying until the corresponding event service is ready.
         if !isConnected {
             isConnected = true
@@ -342,7 +342,7 @@ final class XiaomiRemoteHIDManager {
             // Keep native keys consumed while mapping mode is active. A
             // disconnected or mismatched shared Xiaomi HID device can still
             // emit the system voice shortcut before BLE identity settles.
-            volumeGuard.update(mapping: operationMode == .mapping)
+            volumeGuard.update(mapping: operationMode != .native)
             isConnected = false
             Log.hid.info("Remote disconnected")
             onConnectionChange?(false)

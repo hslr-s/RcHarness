@@ -230,7 +230,7 @@ enum ControllerInput: String, Hashable, CaseIterable, Codable {
     }
 }
 
-enum ControllerOperationMode: Hashable { case mapping, native }
+enum ControllerOperationMode: Hashable { case mapping, native, mouse }
 
 enum HarnessFocusTarget: String {
     case chatGPT = "chatgpt", claude, cursor, deepSeek = "deepseek", workBuddy = "workbuddy", openCode = "opencode"
@@ -240,12 +240,14 @@ enum RemoteAction: String, CaseIterable, Codable, Identifiable, Hashable {
     case enter, backspace, rapidDelete, escape, arrowUp, arrowDown, arrowLeft, arrowRight
     // Preserve the stored value used by existing mappings and backups.
     case switchToNativeMode = "toggleMode"
+    case switchToMouseMode = "toggleMouseMode"
     case rightCommand, copy, paste, browserBack, browserForward
     case mouseLeft, mouseRight, pointerUp, pointerDown, pointerLeft, pointerRight
     case scrollUp, scrollDown, volumeUp, volumeDown, recordedShortcut, openApplication, disabled
     case leftCommand, fn, leftOption, rightOption, playPause, mute, phrase, macro
     case openHarnessSwitcher, openPhrases, showAllWindows, switchApplications, showDesktop, focusChatGPT
     case focusClaude, focusCursor, focusDeepSeek, focusWorkBuddy, focusOpenCode
+    case showShortcutHelp
 
     static let harnessFocusActions: [Self] = [.focusChatGPT, .focusClaude, .focusCursor, .focusDeepSeek, .focusWorkBuddy, .focusOpenCode]
 
@@ -288,6 +290,7 @@ enum RemoteAction: String, CaseIterable, Codable, Identifiable, Hashable {
         case .arrowLeft: "方向键 ←"
         case .arrowRight: "方向键 →"
         case .switchToNativeMode: "切换到原生模式"
+        case .switchToMouseMode: "切换到鼠标模式"
         case .rightCommand: "按住右侧 Command"
         case .showAllWindows: "查看所有窗口 (Control + ↑)"
         case .switchApplications: "切换应用 (⌘ Tab)"
@@ -325,6 +328,21 @@ enum RemoteAction: String, CaseIterable, Codable, Identifiable, Hashable {
         case .focusDeepSeek: "打开聚焦DeepSeek"
         case .focusWorkBuddy: "打开聚焦WorkBuddy"
         case .focusOpenCode: "打开聚焦OpenCode"
+        case .showShortcutHelp: "显示快捷键速查"
+        }
+    }
+}
+
+extension RemoteAction {
+    /// Actions whose down/up pair can be repeated while the key stays held.
+    var supportsRepeatWhileHeld: Bool {
+        switch self {
+        case .arrowUp, .arrowDown, .arrowLeft, .arrowRight,
+             .pointerUp, .pointerDown, .pointerLeft, .pointerRight,
+             .scrollUp, .scrollDown:
+            return true
+        default:
+            return false
         }
     }
 }
@@ -351,6 +369,7 @@ struct ButtonMapping: Codable, Equatable {
     var shortcut: RecordedShortcut?
     var applicationPath: String?
     var referenceID: String?
+    var repeatWhileHeld: Bool = false
 
     /// Legacy modifier actions remain readable while new voice bindings store
     /// a recorded shortcut directly.
@@ -364,6 +383,21 @@ struct ButtonMapping: Codable, Equatable {
         case .rightOption: return RecordedShortcut(keyCode: 0x3D, modifiers: 0x00080040, label: "右侧 Option")
         default: return nil
         }
+    }
+}
+
+extension ButtonMapping {
+    enum CodingKeys: String, CodingKey {
+        case action, shortcut, applicationPath, referenceID, repeatWhileHeld
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        action = try container.decode(RemoteAction.self, forKey: .action)
+        shortcut = try container.decodeIfPresent(RecordedShortcut.self, forKey: .shortcut)
+        applicationPath = try container.decodeIfPresent(String.self, forKey: .applicationPath)
+        referenceID = try container.decodeIfPresent(String.self, forKey: .referenceID)
+        repeatWhileHeld = try container.decodeIfPresent(Bool.self, forKey: .repeatWhileHeld) ?? false
     }
 }
 
@@ -388,6 +422,33 @@ struct RemoteMapping: Codable, Equatable {
             .youtube: .copy, .netflix: .paste,
         ]
         for (input, action) in actions { result[input] = ButtonMapping(action: action) }
+        return result
+    }
+
+    /// Mouse mode starts from the everyday scheme, then overrides the gestures
+    /// that turn the remote into a pointer. Everything else stays editable in
+    /// the dedicated mouse profile, independently of the default scheme.
+    var mouseMode: RemoteMapping {
+        var result = self
+        result[.buttonA, .single] = ButtonMapping(action: .mouseLeft)
+        result[.buttonA, .double] = ButtonMapping(action: .disabled)
+        result[.buttonA, .long] = ButtonMapping(action: .mouseRight)
+        for (input, action) in [
+            (ControllerInput.dpadUp, RemoteAction.pointerUp),
+            (.dpadDown, .pointerDown),
+            (.dpadLeft, .pointerLeft),
+            (.dpadRight, .pointerRight)
+        ] {
+            result[input, .single] = ButtonMapping(action: action, repeatWhileHeld: true)
+            result[input, .double] = ButtonMapping(action: .disabled)
+            result[input, .long] = ButtonMapping(action: .disabled)
+        }
+        result[.rightShoulder, .single] = ButtonMapping(action: .scrollUp, repeatWhileHeld: true)
+        result[.rightShoulder, .double] = ButtonMapping(action: .volumeUp)
+        result[.rightShoulder, .long] = ButtonMapping(action: .disabled)
+        result[.leftShoulder, .single] = ButtonMapping(action: .scrollDown, repeatWhileHeld: true)
+        result[.leftShoulder, .double] = ButtonMapping(action: .volumeDown)
+        result[.leftShoulder, .long] = ButtonMapping(action: .disabled)
         return result
     }
 
