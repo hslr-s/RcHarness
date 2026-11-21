@@ -682,6 +682,27 @@ final class RemoteDashboardModel: ObservableObject {
         harnesses[index].isEnabled = enabled
         if !enabled, selectedHarnessID == id { activateProfile(nil) }
     }
+
+    func setHarnessFocusStrategy(_ id: String, strategy: HarnessFocusStrategy) {
+        guard let index = harnesses.firstIndex(where: { $0.id == id }) else { return }
+        harnesses[index].focusStrategy = strategy
+        let name = harnesses[index].name
+        switch strategy {
+        case .automatic: postNotice("\(name) 已恢复自动识别输入框", level: .success)
+        case .recorded:
+            postNotice(harnesses[index].composerTarget == nil
+                       ? "请先记录 \(name) 的输入框，记录前自动识别仍生效"
+                       : "\(name) 将只聚焦已记录的输入框", level: .information)
+        case .none: postNotice("\(name) 只打开应用，不聚焦输入框", level: .information)
+        }
+    }
+
+    func setHarnessComposerTarget(_ id: String, target: HarnessComposerTarget?) {
+        guard let index = harnesses.firstIndex(where: { $0.id == id }) else { return }
+        harnesses[index].composerTarget = target
+        postNotice(target == nil ? "已清除 \(harnesses[index].name) 的输入框记录"
+                                 : "已记录 \(harnesses[index].name) 的输入框（不保存文字）", level: .success)
+    }
     @discardableResult
     func addHarness(applicationURL: URL) -> String {
         let url = applicationURL.standardizedFileURL
@@ -950,7 +971,7 @@ final class RemoteDashboardModel: ObservableObject {
 
     func mappingTitle(_ value: ButtonMapping) -> String {
         if value.action == .recordedShortcut { return value.shortcut?.label ?? "选择快捷键" }
-        if value.action == .openApplication { return value.applicationPath.map { URL(fileURLWithPath: $0).deletingPathExtension().lastPathComponent } ?? "选择应用" }
+        if value.action == .openApplication || value.action == .focusApplication { return value.applicationPath.map { URL(fileURLWithPath: $0).deletingPathExtension().lastPathComponent } ?? "选择应用" }
         if value.action == .phrase { return phrases.first(where: { $0.id.uuidString == value.referenceID })?.title ?? "选择常用语" }
         if value.action == .macro { return macros.first(where: { $0.id.uuidString == value.referenceID })?.name ?? "选择组合动作" }
         return value.action == .disabled ? "未设置" : value.action.label

@@ -4,19 +4,29 @@ import SwiftUI
 
 @MainActor
 final class HarnessSwitcherController {
+    typealias ApplicationActivation = @MainActor (Int32, @escaping () -> Bool) -> HarnessApplicationActivation.Result
+
     let model = HarnessSwitcherModel()
     private let harnesses: () -> [HarnessConfiguration]
     private let onSelection: (HarnessSwitcherItem) -> Void
     private let onError: (String) -> Void
+    private let onFocus: ((HarnessSwitcherItem) -> Void)?
+    private let activateApplication: ApplicationActivation
     private var panel: HarnessSwitcherPanel?
     private var observers: [NSObjectProtocol] = []
 
     init(harnesses: @escaping () -> [HarnessConfiguration],
          onSelection: @escaping (HarnessSwitcherItem) -> Void,
-         onError: @escaping (String) -> Void) {
+         onError: @escaping (String) -> Void,
+         onFocus: ((HarnessSwitcherItem) -> Void)? = nil,
+         activateApplication: @escaping ApplicationActivation = { processID, isAvailable in
+            HarnessApplicationActivation.perform(processID: processID, isAvailable: isAvailable)
+         }) {
         self.harnesses = harnesses
         self.onSelection = onSelection
         self.onError = onError
+        self.onFocus = onFocus
+        self.activateApplication = activateApplication
         model.onDismiss = { [weak self] in self?.panel?.orderOut(nil) }
         model.onConfirm = { [weak self] item in self?.activate(item) }
         let center = NSWorkspace.shared.notificationCenter
@@ -51,13 +61,14 @@ final class HarnessSwitcherController {
     }
 
     private func activate(_ item: HarnessSwitcherItem) {
-        let result = HarnessApplicationActivation.perform(processID: item.id, isAvailable: {
+        let result = activateApplication(item.id) {
             // A listed app may have quit, been replaced, or been disabled.
-            runningItems().contains(item)
-        })
+            self.runningItems().contains(item)
+        }
         switch result {
         case .activated:
             onSelection(item)
+            onFocus?(item)
         case .unavailable:
             onError("该 Harness 已退出或停用，请重新打开运行列表。")
         case .failed:

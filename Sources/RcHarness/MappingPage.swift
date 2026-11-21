@@ -670,7 +670,7 @@ struct ActionMappingEditor: View {
             + (SystemDesktopController.shared.isSupported ? [.showDesktop] : [])
             + [.mouseLeft, .mouseRight, .pointerUp, .pointerDown, .pointerLeft, .pointerRight, .scrollUp, .scrollDown]
             + (parentMacroID == nil ? [.switchToNativeMode, .switchToMouseMode, .switchApplications, .openHarnessSwitcher, .openPhrases, .showShortcutHelp] : [])
-        let custom: [RemoteAction] = [.recordedShortcut, .openApplication, .phrase, .macro]
+        let custom: [RemoteAction] = [.recordedShortcut, .openApplication, .focusApplication, .phrase, .macro]
         let filtered: [RemoteAction]
         switch filter {
         case .basic: filtered = basic
@@ -721,7 +721,7 @@ struct ActionMappingEditor: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             if value.action == .openHarnessSwitcher {
-                Text("展示已启用且正在运行的 Harness。同一按键每按一次切换一项，按住连续切换；停止操作 2 秒后自动进入。左右键也可选择，确认 OK 立即进入，返回或主页取消。")
+                Text("展示已启用且正在运行的 Harness。同一按键每按一次切换一项，按住连续切换；停止操作 2 秒后自动进入。左右键也可选择，确认 OK 立即进入并聚焦输入框，返回或主页取消。")
                     .font(.caption).foregroundStyle(.secondary)
             }
             if value.action == .openPhrases {
@@ -735,12 +735,16 @@ struct ActionMappingEditor: View {
             if value.action == .recordedShortcut {
                 ShortcutBindingEditor(shortcut: $value.shortcut, capturing: $capturing)
             }
-            if value.action == .openApplication {
+            if value.action == .openApplication || value.action == .focusApplication {
                 HStack {
                     Text(value.applicationPath.map { URL(fileURLWithPath: $0).deletingPathExtension().lastPathComponent } ?? "尚未选择 App")
                         .font(SettingsStyle.Typography.body).foregroundStyle(.secondary)
                     Spacer()
                     Button("选择 App…") { if let url = FilePanels.chooseApplication() { value.applicationPath = url.path } }
+                }
+                if value.action == .focusApplication {
+                    Text("打开所选 App，并将焦点放到会话输入框。聚焦方式在「设置 → 应用 Harness」中配置。")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
             }
             if value.action == .phrase {

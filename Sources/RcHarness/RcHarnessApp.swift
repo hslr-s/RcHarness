@@ -17,7 +17,7 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
     })
     private let sender = SystemEventSender()
     private let harnessComposerFocus = HarnessComposerFocus()
-    private var harnessFocusRequest = UUID()
+    private let focusRequestGate = HarnessFocusRequestGate()
     private var renderDefaultsSuite: String?
     private var mapping = RemoteMapping.defaults
     private let gestures = RemoteGestureController()
@@ -31,7 +31,8 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
         onSelection: { [weak self] item in
             self?.dashboardModel?.matchApplication(item.application.applicationPath, bundleIdentifier: item.application.bundleIdentifier)
         },
-        onError: { [weak self] message in self?.dashboardModel?.postNotice(message, level: .error) }
+        onError: { [weak self] message in self?.dashboardModel?.postNotice(message, level: .error) },
+        onFocus: { [weak self] item in self?.focusHarness(fromSwitcher: item) }
     )
     private lazy var phrasePicker = PhrasePickerController { [weak self] text in
         self?.sender.typeText(text)
@@ -591,6 +592,9 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
         } else if let target = button.action.harnessFocusTarget {
             guard pressed, mode != .native else { return }
             focusHarness(target)
+        } else if button.action == .focusApplication {
+            guard pressed, mode != .native else { return }
+            focusApplication(at: button.applicationPath)
         } else if button.action == .switchToMouseMode {
             guard pressed, let input else { return }
             let trigger = lastResolvedTrigger
@@ -644,32 +648,69 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
 
     private func focusHarness(_ target: HarnessFocusTarget) {
         guard let harness = dashboardModel?.harnesses.first(where: { $0.id == target.rawValue })
-            ?? HarnessConfiguration.defaults.first(where: { $0.id == target.rawValue }),
-              let installedURL = harness.installedApplicationURL else { return }
+            ?? HarnessConfiguration.defaults.first(where: { $0.id == target.rawValue }) else { return }
+        focusHarness(harness, target: target)
+    }
+
+    private func focusHarness(fromSwitcher item: HarnessSwitcherItem) {
+        guard var harness = dashboardModel?.harnesses.first(where: { $0.id == item.harnessID })
+                ?? HarnessConfiguration.defaults.first(where: { $0.id == item.harnessID }),
+              harness.focusStrategy != .some(.none) else { return }
+        if harness.installedApplicationURL == nil {
+            harness.applicationPath = item.application.applicationPath
+        }
+        focusHarness(harness, target: HarnessFocusTarget(rawValue: harness.id) ?? .custom)
+    }
+
+    private func focusApplication(at path: String?) {
+        guard let path else { return }
+        let identifier = Bundle(path: path)?.bundleIdentifier
+        let harness = dashboardModel?.harnesses.first(where: {
+            $0.matches(applicationPath: path, bundleIdentifier: identifier)
+        }) ?? HarnessConfiguration(
+            id: path,
+            name: URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent,
+            bundleIdentifier: identifier,
+            applicationPath: path
+        )
+        focusHarness(harness, target: .custom)
+    }
+
+    private func focusHarness(_ harness: HarnessConfiguration, target: HarnessFocusTarget) {
+        guard let installedURL = harness.installedApplicationURL else { return }
         harnessComposerFocus.cancel()
-        let request = UUID()
-        harnessFocusRequest = request
+        let requestID = focusRequestGate.begin()
         let runningApplication = NSWorkspace.shared.runningApplications.first { application in
             !application.isTerminated
                 && harness.matches(applicationPath: application.bundleURL?.path,
                                    bundleIdentifier: application.bundleIdentifier)
         }
         let processID = runningApplication?.processIdentifier
+        let strategy = harness.focusStrategy == .recorded && harness.composerTarget == nil
+            ? HarnessFocusStrategy.automatic : (harness.focusStrategy ?? .automatic)
+        let focusConfiguration = HarnessFocusConfiguration(strategy: strategy, recorded: harness.composerTarget)
         HarnessApplicationFocus.perform(installedURL: installedURL, runningProcessID: processID,
                                         focusRunning: { [weak self] processID in
-            guard let self, self.mode != .native, self.harnessFocusRequest == request else { return }
-            let result = HarnessApplicationActivation.perform(processID: processID, isAvailable: {
-                guard let application = NSRunningApplication(processIdentifier: processID),
-                      !application.isTerminated else { return false }
-                return harness.matches(applicationPath: application.bundleURL?.path,
-                                       bundleIdentifier: application.bundleIdentifier)
-            })
-            if case .failed = result {
-                Log.app.error("Harness activation failed target=\(target.rawValue, privacy: .public) pid=\(processID) accessibility_granted=\(AXIsProcessTrusted())")
+            guard let self, self.mode != .native, self.focusRequestGate.isCurrent(requestID) else { return }
+            let alreadyFrontmost = NSWorkspace.shared.frontmostApplication?.processIdentifier == processID
+            if alreadyFrontmost {
+                // Reactivating the key window clears a web composer's focus for
+                // about two seconds; reach the running instance directly.
+                Log.app.debug("Harness activation skipped reason=already_frontmost pid=\(processID)")
+            } else {
+                let result = HarnessApplicationActivation.perform(processID: processID, isAvailable: {
+                    guard let application = NSRunningApplication(processIdentifier: processID),
+                          !application.isTerminated else { return false }
+                    return harness.matches(applicationPath: application.bundleURL?.path,
+                                           bundleIdentifier: application.bundleIdentifier)
+                })
+                if case .failed = result {
+                    Log.app.error("Harness activation failed pid=\(processID) accessibility_granted=\(AXIsProcessTrusted())")
+                }
+                guard result != .unavailable else { return }
             }
-            if result != .unavailable, AXIsProcessTrusted() {
-                self.harnessComposerFocus.start(processID: processID, target: target)
-            }
+            guard AXIsProcessTrusted() else { return }
+            self.harnessComposerFocus.start(processID: processID, target: target, configuration: focusConfiguration)
         }, launch: { url, completion in
             let configuration = NSWorkspace.OpenConfiguration()
             configuration.activates = true
@@ -758,7 +799,7 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
         shortcutHelp.dismiss()
         guard mode != newMode else { return }
         harnessComposerFocus.cancel()
-        harnessFocusRequest = UUID()
+        focusRequestGate.begin()
         harnessSwitcher.model.reset(reason: "mode-changed")
         phrasePicker.model.reset()
         gestures.cancel()

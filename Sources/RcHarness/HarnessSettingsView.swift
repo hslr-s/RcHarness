@@ -5,6 +5,8 @@ struct HarnessSettingsView: View {
     @ObservedObject var model: RemoteDashboardModel
     @State private var runningApplications: [NSRunningApplication] = []
     @State private var removalCandidate: HarnessConfiguration?
+    @State private var recordingHarnessID: String?
+    @State private var recorder = HarnessComposerRecorder()
 
     var body: some View {
         VStack(spacing: SettingsStyle.Spacing.groups) {
@@ -33,6 +35,7 @@ struct HarnessSettingsView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .onAppear(perform: refreshApplications)
+        .onDisappear { recorder.cancel() }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didLaunchApplicationNotification)) { _ in refreshApplications() }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didTerminateApplicationNotification)) { _ in refreshApplications() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in refreshApplications() }
@@ -55,7 +58,9 @@ struct HarnessSettingsView: View {
         let running = runningApplications.contains {
             harness.matches(applicationPath: $0.bundleURL?.path, bundleIdentifier: $0.bundleIdentifier)
         }
-        let status = !harness.isEnabled ? "已停用" : running ? "运行中" : url == nil ? "未安装" : "未运行"
+        let isRecording = recordingHarnessID == harness.id
+        let status = isRecording ? "记录中：请点击目标输入框"
+            : !harness.isEnabled ? "已停用" : running ? "运行中" : url == nil ? "未安装" : "未运行"
         return HStack(spacing: SettingsStyle.Spacing.controls) {
             Button {
                 model.activateHarness(harness.id)
@@ -106,6 +111,21 @@ struct HarnessSettingsView: View {
             .help("启用 \(harness.name) Harness")
             Menu {
                 Button("打开应用") { if let url { NSWorkspace.shared.open(url) } }.disabled(url == nil)
+                Divider()
+                Menu("聚焦：\((harness.focusStrategy ?? .automatic).label)") {
+                    ForEach(HarnessFocusStrategy.allCases) { strategy in
+                        Button {
+                            model.setHarnessFocusStrategy(harness.id, strategy: strategy)
+                        } label: {
+                            Text((harness.focusStrategy ?? .automatic) == strategy ? "✓ \(strategy.label)" : strategy.label)
+                        }
+                    }
+                }
+                Button("记录输入框…") { startRecording(harness) }
+                    .disabled(isRecording || url == nil)
+                if harness.composerTarget != nil {
+                    Button("清除输入框记录") { model.setHarnessComposerTarget(harness.id, target: nil) }
+                }
                 if !harness.isBuiltIn {
                     Divider()
                     Button("移除 Harness…", role: .destructive) { removalCandidate = harness }
@@ -142,5 +162,25 @@ struct HarnessSettingsView: View {
     private func addApplication() {
         guard let url = FilePanels.chooseApplication() else { return }
         model.addHarness(applicationURL: url)
+    }
+
+    private func startRecording(_ harness: HarnessConfiguration) {
+        guard let url = harness.installedApplicationURL, recordingHarnessID == nil else { return }
+        recordingHarnessID = harness.id
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        NSWorkspace.shared.openApplication(at: url, configuration: configuration) { _, _ in
+            DispatchQueue.main.async {
+                self.recorder.start { target in
+                    guard let target else {
+                        self.model.postNotice("没有检测到可记录的输入框，请点击目标输入框后重试。", level: .warning)
+                        self.recordingHarnessID = nil
+                        return
+                    }
+                    self.model.setHarnessComposerTarget(harness.id, target: target)
+                    self.recordingHarnessID = nil
+                }
+            }
+        }
     }
 }

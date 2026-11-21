@@ -320,6 +320,34 @@ final class HarnessSwitcherTests: XCTestCase {
         XCTAssertTrue(output.isEmpty)
     }
 
+    func testSuccessfulSwitchAlsoRequestsComposerFocus() {
+        let events = HarnessSwitcherFocusProbe()
+        let controller = HarnessSwitcherController(
+            harnesses: { HarnessConfiguration.defaults },
+            onSelection: { _ in events.record("selection") },
+            onError: { _ in events.record("error") },
+            onFocus: { _ in events.record("focus") },
+            activateApplication: { _, _ in .activated }
+        )
+        controller.model.present(items: [items[0]], frontmostProcessID: nil)
+        controller.model.confirm()
+        XCTAssertEqual(events.values, ["selection", "focus"])
+    }
+
+    func testFailedSwitchDoesNotRequestComposerFocus() {
+        let events = HarnessSwitcherFocusProbe()
+        let controller = HarnessSwitcherController(
+            harnesses: { HarnessConfiguration.defaults },
+            onSelection: { _ in events.record("selection") },
+            onError: { _ in events.record("error") },
+            onFocus: { _ in events.record("focus") },
+            activateApplication: { _, _ in .failed }
+        )
+        controller.model.present(items: [items[0]], frontmostProcessID: nil)
+        controller.model.confirm()
+        XCTAssertEqual(events.values, ["error"])
+    }
+
     func testActionRoundTripsInConfigurationAndIsRejectedInMacros() throws {
         var mapping = RemoteMapping.defaults
         mapping[.home, .long] = ButtonMapping(action: .openHarnessSwitcher)
@@ -331,4 +359,11 @@ final class HarnessSwitcherTests: XCTestCase {
             XCTAssertEqual(error as? MacroExecutionError, .unsupportedAction)
         }
     }
+}
+
+@MainActor
+private final class HarnessSwitcherFocusProbe {
+    var values: [String] = []
+
+    func record(_ value: String) { values.append(value) }
 }

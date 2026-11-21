@@ -163,7 +163,7 @@ final class SystemEventSender {
         case .mute: mediaKey(MediaKey.mute, pressed: pressed)
         case .playPause: mediaKey(MediaKey.play, pressed: pressed)
         case .phrase, .macro, .switchToNativeMode, .switchToMouseMode, .openHarnessSwitcher, .openPhrases, .switchApplications,
-             .focusChatGPT, .focusClaude, .focusCursor, .focusDeepSeek, .focusWorkBuddy, .focusOpenCode, .showShortcutHelp, .disabled: break
+             .focusApplication, .focusChatGPT, .focusClaude, .focusCursor, .focusDeepSeek, .focusWorkBuddy, .focusOpenCode, .showShortcutHelp, .disabled: break
         }
     }
 

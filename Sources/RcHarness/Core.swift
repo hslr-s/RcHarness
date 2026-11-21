@@ -234,6 +234,7 @@ enum ControllerOperationMode: Hashable { case mapping, native, mouse }
 
 enum HarnessFocusTarget: String {
     case chatGPT = "chatgpt", claude, cursor, deepSeek = "deepseek", workBuddy = "workbuddy", openCode = "opencode"
+    case custom = "custom"
 }
 
 enum RemoteAction: String, CaseIterable, Codable, Identifiable, Hashable {
@@ -243,7 +244,7 @@ enum RemoteAction: String, CaseIterable, Codable, Identifiable, Hashable {
     case switchToMouseMode = "toggleMouseMode"
     case rightCommand, copy, paste, browserBack, browserForward
     case mouseLeft, mouseRight, pointerUp, pointerDown, pointerLeft, pointerRight
-    case scrollUp, scrollDown, volumeUp, volumeDown, recordedShortcut, openApplication, disabled
+    case scrollUp, scrollDown, volumeUp, volumeDown, recordedShortcut, openApplication, focusApplication, disabled
     case leftCommand, fn, leftOption, rightOption, playPause, mute, phrase, macro
     case openHarnessSwitcher, openPhrases, showAllWindows, switchApplications, showDesktop, focusChatGPT
     case focusClaude, focusCursor, focusDeepSeek, focusWorkBuddy, focusOpenCode
@@ -311,6 +312,7 @@ enum RemoteAction: String, CaseIterable, Codable, Identifiable, Hashable {
         case .volumeDown: "系统音量 −"
         case .recordedShortcut: "录制的快捷键"
         case .openApplication: "打开应用"
+        case .focusApplication: "打开聚焦所选应用"
         case .disabled: "禁用"
         case .leftCommand: "按住左侧 Command"
         case .fn: "按住 Fn / 地球键"

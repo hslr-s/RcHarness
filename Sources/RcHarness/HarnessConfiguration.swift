@@ -14,6 +14,9 @@ struct HarnessConfiguration: Equatable, Identifiable {
     /// Used only when migrating older exports; never written to new files.
     var legacyMapping: RemoteMapping = .defaults
     var hasLegacyMapping = false
+    /// Nil preserves the previous automatic focus behaviour.
+    var focusStrategy: HarnessFocusStrategy? = nil
+    var composerTarget: HarnessComposerTarget? = nil
 
     var isBuiltIn: Bool { Self.builtInIDs.contains(id) }
     var initialProfileName: String? {
@@ -68,6 +71,8 @@ struct HarnessConfiguration: Equatable, Identifiable {
         replacement.didInitializeDefaultProfile = didInitializeDefaultProfile
         replacement.legacyMapping = legacyMapping
         replacement.hasLegacyMapping = hasLegacyMapping
+        replacement.focusStrategy = focusStrategy
+        replacement.composerTarget = composerTarget
         replacement.name = Self.migratingLegacyName(name)
         replacement.applicationPath = applicationPath
         return replacement
@@ -101,6 +106,7 @@ struct HarnessConfiguration: Equatable, Identifiable {
 extension HarnessConfiguration: Codable {
     private enum CodingKeys: String, CodingKey {
         case id, name, bundleIdentifier, applicationPath, isEnabled, profileID, didInitializeDefaultProfile, mapping
+        case focusStrategy, composerTarget
     }
 
     init(from decoder: Decoder) throws {
@@ -114,6 +120,8 @@ extension HarnessConfiguration: Codable {
         didInitializeDefaultProfile = try values.decodeIfPresent(Bool.self, forKey: .didInitializeDefaultProfile) ?? false
         legacyMapping = try values.decodeIfPresent(RemoteMapping.self, forKey: .mapping) ?? .defaults
         hasLegacyMapping = values.contains(.mapping)
+        focusStrategy = try values.decodeIfPresent(HarnessFocusStrategy.self, forKey: .focusStrategy)
+        composerTarget = try values.decodeIfPresent(HarnessComposerTarget.self, forKey: .composerTarget)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -125,5 +133,7 @@ extension HarnessConfiguration: Codable {
         try values.encode(isEnabled, forKey: .isEnabled)
         try values.encodeIfPresent(profileID, forKey: .profileID)
         try values.encode(didInitializeDefaultProfile, forKey: .didInitializeDefaultProfile)
+        try values.encodeIfPresent(focusStrategy, forKey: .focusStrategy)
+        try values.encodeIfPresent(composerTarget, forKey: .composerTarget)
     }
 }
