@@ -358,6 +358,10 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
         let openItem = NSMenuItem(title: "打开 RcHarness", action: #selector(showWindow), keyEquivalent: "o")
         openItem.target = self
         statusMenu.addItem(openItem)
+        let reconnectItem = NSMenuItem(title: "重新连接遥控器", action: #selector(reconnectRemote), keyEquivalent: "r")
+        reconnectItem.target = self
+        reconnectItem.toolTip = "重新扫描并连接遥控器"
+        statusMenu.addItem(reconnectItem)
         let setupItem = NSMenuItem(title: "设置向导…", action: #selector(showSetup), keyEquivalent: "")
         setupItem.target = self
         statusMenu.addItem(setupItem)
@@ -867,6 +871,10 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
     @objc private func showSetup() {
         dashboardModel.setup.present()
         showWindow()
+    }
+
+    @objc private func reconnectRemote() {
+        dashboardModel?.rescan()
     }
 
     @objc private func showWindow() {

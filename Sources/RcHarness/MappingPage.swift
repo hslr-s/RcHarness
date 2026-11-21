@@ -387,6 +387,13 @@ struct MappingFooter: View {
         HStack(spacing: SettingsStyle.Spacing.groups) {
             Label(model.isConnected ? "按键功能已连接" : "等待遥控器连接", systemImage: "keyboard")
                 .font(SettingsStyle.Typography.caption).foregroundStyle(.secondary)
+            Button {
+                model.rescan()
+            } label: {
+                Label("重新连接", systemImage: "arrow.clockwise")
+            }
+            .controlSize(.small)
+            .help("重新扫描并连接遥控器")
             Divider().frame(height: 30)
             Button("设置全局按键") { model.page = .about }
             Spacer()
