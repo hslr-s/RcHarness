@@ -113,4 +113,33 @@ final class HarnessComposerFocusMigrationTests: XCTestCase {
         XCTAssertNil(legacy["focusStrategy"])
         XCTAssertNil(legacy["composerTarget"])
     }
+
+    func testBackupImportExportPreservesFocusSettingsAndFocusApplicationBinding() throws {
+        let suite = "RcHarness.FocusMigration." + UUID().uuidString
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let model = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
+        let harnessID = try XCTUnwrap(model.harnesses.first?.id)
+        let target = HarnessComposerTarget(role: "AXTextArea", identifier: "composer-input", windowTitle: "会话")
+        model.setHarnessFocusStrategy(harnessID, strategy: .recorded)
+        model.setHarnessComposerTarget(harnessID, target: target)
+        model.update(ButtonMapping(action: .focusApplication, shortcut: nil,
+                                   applicationPath: "/Applications/Demo.app"),
+                     for: .buttonA, trigger: .single)
+
+        let stored = try XCTUnwrap(SettingsStorage.load([HarnessConfiguration].self,
+                                                        SettingsKeys.Stored.harnesses, defaults: defaults))
+        XCTAssertEqual(stored.first(where: { $0.id == harnessID })?.focusStrategy, .recorded)
+        XCTAssertEqual(stored.first(where: { $0.id == harnessID })?.composerTarget, target)
+
+        let backup = try JSONDecoder().decode(SettingsBackup.self,
+                                              from: JSONEncoder().encode(model.configurationBackup()))
+        let restored = RemoteDashboardModel(mapping: .defaults, defaults: defaults)
+        try restored.applyConfiguration(backup)
+        XCTAssertEqual(restored.harnesses.first(where: { $0.id == harnessID })?.focusStrategy, .recorded)
+        XCTAssertEqual(restored.harnesses.first(where: { $0.id == harnessID })?.composerTarget, target)
+        let binding = restored.profiles.first(where: { $0.id == restored.selectedProfileID })?.mapping[.buttonA]
+        XCTAssertEqual(binding?.action, .focusApplication)
+        XCTAssertEqual(binding?.applicationPath, "/Applications/Demo.app")
+    }
 }
