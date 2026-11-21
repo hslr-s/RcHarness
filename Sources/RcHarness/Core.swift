@@ -247,6 +247,7 @@ enum RemoteAction: String, CaseIterable, Codable, Identifiable, Hashable {
     case leftCommand, fn, leftOption, rightOption, playPause, mute, phrase, macro
     case openHarnessSwitcher, openPhrases, showAllWindows, switchApplications, showDesktop, focusChatGPT
     case focusClaude, focusCursor, focusDeepSeek, focusWorkBuddy, focusOpenCode
+    case showShortcutHelp
 
     static let harnessFocusActions: [Self] = [.focusChatGPT, .focusClaude, .focusCursor, .focusDeepSeek, .focusWorkBuddy, .focusOpenCode]
 
@@ -327,6 +328,7 @@ enum RemoteAction: String, CaseIterable, Codable, Identifiable, Hashable {
         case .focusDeepSeek: "打开聚焦DeepSeek"
         case .focusWorkBuddy: "打开聚焦WorkBuddy"
         case .focusOpenCode: "打开聚焦OpenCode"
+        case .showShortcutHelp: "显示快捷键速查"
         }
     }
 }

@@ -47,6 +47,7 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
     private var mouseModeEntryTrigger: ButtonTrigger?
     private var lastResolvedTrigger: ButtonTrigger?
     private lazy var modeNotice = ModeNoticeController()
+    private lazy var shortcutHelp = ShortcutHelpController()
     /// Mouse mode always uses its own editable profile, regardless of which
     /// scheme the dashboard currently has selected. The trigger that entered
     /// mouse mode is pinned to the exit action, so a double tap cannot be
@@ -151,6 +152,7 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
             self.applicationSwitcher.reset()
             self.harnessSwitcher.model.reset(reason: "setup-navigation")
             self.phrasePicker.model.reset()
+            self.shortcutHelp.dismiss()
             self.gestures.cancel()
             self.cancelMacros()
             self.heldVoiceInput = nil
@@ -405,7 +407,8 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
             self.updateStatusItem()
         }
         hid.onButtonInput = { [weak self] input, pressed in
-            if input == .options, self?.voice.voiceMode == .tap, self?.applicationSwitcher.isPresented != true {
+            if input == .options, self?.voice.voiceMode == .tap,
+               self?.applicationSwitcher.isPresented != true, self?.shortcutHelp.isPresented != true {
                 self?.voice.receiveTapButton(pressed: pressed)
                 return
             }
@@ -471,6 +474,12 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
 
     private func handle(input: ControllerInput, pressed: Bool) {
         if dashboardModel.setup.consumes(input, pressed: pressed) { return }
+        if shortcutHelp.isPresented {
+            // Any remote button dismisses the cheat sheet and is consumed, so
+            // the same press never performs its mapped action.
+            if pressed { shortcutHelp.dismiss() }
+            return
+        }
         if applicationSwitcher.handle(input, pressed: pressed) {
             // Keep the other modal routers' physical key tracking up to date.
             _ = phrasePicker.model.handle(input, pressed: pressed)
@@ -596,6 +605,34 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
             }
         } else if button.action == .macro {
             if pressed, let macro = dashboardModel?.macros.first(where: { $0.id.uuidString == button.referenceID }) { runMacro(macro) }
+        } else if button.action == .showShortcutHelp {
+            guard pressed, mode != .native else { return }
+            applicationSwitcher.cancel()
+            if shortcutHelp.isPresented {
+                shortcutHelp.dismiss()
+            } else {
+                harnessSwitcher.model.dismiss(reason: "shortcut-help-opened")
+                phrasePicker.model.dismiss()
+                gestures.cancel()
+                cancelMacros()
+                heldVoiceInput = nil
+                voiceSession.cancel()
+                voice.cancelActiveStream()
+                let schemeName: String
+                if mode == .mouse {
+                    schemeName = dashboardModel.mouseProfile.map { dashboardModel.profileDisplayName($0) } ?? "鼠标模式方案"
+                } else {
+                    schemeName = dashboardModel.activeMappingName
+                }
+                shortcutHelp.show(mapping: activeMapping,
+                                  profile: dashboardModel.remoteProfile,
+                                  mode: mode,
+                                  schemeName: schemeName,
+                                  globalInputs: Set(dashboardModel.globalButtons.buttons.compactMap(\.input)),
+                                  titleFor: { [weak self] value in
+                                      self?.dashboardModel?.mappingTitle(value) ?? value.action.label
+                                  })
+            }
         } else {
             sender.send(button, pressed: pressed)
         }
@@ -714,6 +751,7 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
 
     private func setOperationMode(_ newMode: ControllerOperationMode) {
         applicationSwitcher.reset()
+        shortcutHelp.dismiss()
         guard mode != newMode else { return }
         harnessComposerFocus.cancel()
         harnessFocusRequest = UUID()

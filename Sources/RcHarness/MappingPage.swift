@@ -514,7 +514,7 @@ struct MappingEditorSheet: View {
     }
 }
 
-private struct MappingConnectors: View {
+struct MappingConnectors: View {
     @Environment(\.colorScheme) private var colorScheme
     let layout: MappingLayout
     let emphasizedInputs: Set<ControllerInput>
@@ -662,7 +662,7 @@ struct ActionMappingEditor: View {
         let system: [RemoteAction] = [.volumeUp, .volumeDown, .mute, .playPause, .showAllWindows] + RemoteAction.harnessFocusActions
             + (SystemDesktopController.shared.isSupported ? [.showDesktop] : [])
             + [.mouseLeft, .mouseRight, .pointerUp, .pointerDown, .pointerLeft, .pointerRight, .scrollUp, .scrollDown]
-            + (parentMacroID == nil ? [.switchToNativeMode, .switchToMouseMode, .switchApplications, .openHarnessSwitcher, .openPhrases] : [])
+            + (parentMacroID == nil ? [.switchToNativeMode, .switchToMouseMode, .switchApplications, .openHarnessSwitcher, .openPhrases, .showShortcutHelp] : [])
         let custom: [RemoteAction] = [.recordedShortcut, .openApplication, .phrase, .macro]
         let filtered: [RemoteAction]
         switch filter {
@@ -719,6 +719,10 @@ struct ActionMappingEditor: View {
             }
             if value.action == .openPhrases {
                 Text("唤出独立常用语浮层。上下左右和确认键各对应一条常用语，单击输入内容1，双击输入内容2；返回或主页关闭。")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            if value.action == .showShortcutHelp {
+                Text("显示当前模式的按键速查界面，按任意遥控器按键或键盘按键关闭。原生模式下不执行映射动作。")
                     .font(.caption).foregroundStyle(.secondary)
             }
             if value.action == .recordedShortcut {
