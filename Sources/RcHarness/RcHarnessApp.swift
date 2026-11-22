@@ -48,6 +48,7 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
     private var mouseModeEntryTrigger: ButtonTrigger?
     private var lastResolvedTrigger: ButtonTrigger?
     private lazy var modeNotice = ModeNoticeController()
+    private lazy var mouseModeRing = MouseModeRingController()
     private lazy var shortcutHelp = ShortcutHelpController()
     /// Mouse mode always uses its own editable profile, regardless of which
     /// scheme the dashboard currently has selected. The trigger that entered
@@ -813,6 +814,7 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
         voice.enabled = mode != .native
         hid.setOperationMode(mode)
         dashboardModel?.operationMode = mode
+        if mode == .mouse { mouseModeRing.show() } else { mouseModeRing.hide() }
         if mode == .native { microphone.stop() }
         if let item = statusMenu.item(withTag: 100) {
             item.title = mode == .mapping ? "模式：映射" : (mode == .mouse ? "模式：鼠标" : "模式：原生")
@@ -1302,7 +1304,9 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
             let voice = self.voice.isReady ? " · 语音已就绪" : ""
             let mode = self.mode == .mapping ? "映射模式" : (self.mode == .mouse ? "鼠标模式" : "原生模式")
             let description = "RcHarness · \(connection)\(voice) · \(mode)"
+            self.statusItem.button?.image = self.mode == .mouse ? MenuBarIcon.makeMouseMode() : MenuBarIcon.make()
             self.statusItem.button?.toolTip = description
+            self.statusItem.button?.setAccessibilityLabel("RcHarness · \(mode)")
             self.statusItem.button?.setAccessibilityHelp(description)
         }
     }

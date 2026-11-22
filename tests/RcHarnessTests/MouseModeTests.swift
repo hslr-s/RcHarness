@@ -213,4 +213,31 @@ final class MouseModeTests: XCTestCase {
         ])
         XCTAssertThrowsError(try MacroExecutionPlan(macro, macros: []))
     }
+
+    func testMouseModeMenuBarIconIsADistinctPersistentMarker() throws {
+        let normal = MenuBarIcon.make()
+        let mouse = MenuBarIcon.makeMouseMode()
+        XCTAssertEqual(mouse.size, NSSize(width: 18, height: 18))
+        XCTAssertTrue(normal.isTemplate)
+        XCTAssertFalse(mouse.isTemplate, "Mouse mode must stay visible as a colored marker")
+        let normalData = try XCTUnwrap(normal.tiffRepresentation)
+        let mouseData = try XCTUnwrap(mouse.tiffRepresentation)
+        XCTAssertNotEqual(normalData, mouseData)
+    }
+
+    func testMouseModeRingFollowsCursorWithoutStealingClicks() throws {
+        let ring = MouseModeRingController()
+        ring.show()
+        defer { ring.hide() }
+        let panel = try XCTUnwrap(NSApp.windows.first { window in
+            window.isKind(of: NSPanel.self) && window.frame.size.width == 44
+        })
+        XCTAssertTrue(panel.collectionBehavior.contains(.canJoinAllSpaces))
+        XCTAssertTrue(panel.collectionBehavior.contains(.fullScreenAuxiliary))
+        XCTAssertTrue(panel.ignoresMouseEvents, "Ring must not steal clicks from full-screen apps")
+        XCTAssertGreaterThan(panel.level.rawValue, NSWindow.Level.normal.rawValue)
+        let cursor = NSEvent.mouseLocation
+        XCTAssertEqual(panel.frame.midX, cursor.x, accuracy: 1)
+        XCTAssertEqual(panel.frame.midY, cursor.y, accuracy: 1)
+    }
 }

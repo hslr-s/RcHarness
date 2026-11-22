@@ -62,4 +62,34 @@ enum MenuBarIcon {
         image.isTemplate = true
         return image
     }
+
+    /// Persistent, high-contrast marker for mouse mode. The warm accent and
+    /// solid mouse silhouette stay noticeable in both light and dark menu bars,
+    /// so the active mode can be told apart at a glance.
+    static func makeMouseMode() -> NSImage {
+        let accent = NSColor(srgbRed: 1.0, green: 0.55, blue: 0.08, alpha: 1.0)
+        let image = NSImage(size: NSSize(width: 24, height: 24), flipped: false) { _ in
+            accent.setFill()
+            NSBezierPath(roundedRect: NSRect(x: 6, y: 2.5, width: 12, height: 19),
+                         xRadius: 6, yRadius: 6).fill()
+
+            NSGraphicsContext.saveGraphicsState()
+            NSGraphicsContext.current?.compositingOperation = .clear
+            let divider = NSBezierPath()
+            divider.move(to: NSPoint(x: 12, y: 21.2))
+            divider.line(to: NSPoint(x: 12, y: 19.4))
+            divider.move(to: NSPoint(x: 12, y: 16.8))
+            divider.line(to: NSPoint(x: 12, y: 12.8))
+            divider.lineWidth = 1.3
+            divider.lineCapStyle = .round
+            divider.stroke()
+            NSBezierPath(roundedRect: NSRect(x: 10.4, y: 16.8, width: 3.2, height: 2.4),
+                         xRadius: 1.2, yRadius: 1.2).fill()
+            NSGraphicsContext.restoreGraphicsState()
+            return true
+        }
+        image.size = NSSize(width: 18, height: 18)
+        image.isTemplate = false
+        return image
+    }
 }
