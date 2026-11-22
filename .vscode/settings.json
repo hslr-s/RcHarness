@@ -1,0 +1,12 @@
+{
+  // 主侧边栏（资源管理器/搜索/源码管理）放到右侧；
+  // 次侧边栏（AI 对话默认所在的位置）会自动出现在左侧，
+  // 编辑器区域则位于 AI 面板右边。
+  "workbench.sideBar.location": "right",
+
+  // 确保承载 AI 对话的次侧边栏默认展开
+  "workbench.secondarySideBar.defaultVisibility": "visible",
+
+  // 活动栏跟随主侧边栏，停靠在最右侧，不占用 AI 一侧的空间
+  "workbench.activityBar.location": "default"
+}
