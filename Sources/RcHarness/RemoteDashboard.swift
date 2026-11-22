@@ -94,6 +94,12 @@ final class RemoteDashboardModel: ObservableObject {
     @Published var phraseAssignments: PhraseAssignments {
         didSet { if !isCommittingConfiguration { settingsWrites.save(phraseAssignments, SettingsKeys.Stored.phraseAssignments) } }
     }
+    @Published var virtualKeySchemes: [VirtualKeyScheme] {
+        didSet {
+            guard !isCommittingConfiguration else { return }
+            settingsWrites.debounce(SettingsKeys.Stored.virtualKeySchemes) { [weak self] in self?.virtualKeySchemes ?? [] }
+        }
+    }
     @Published private(set) var harnesses: [HarnessConfiguration] {
         didSet {
             guard !isCommittingConfiguration else { return }
@@ -272,6 +278,22 @@ final class RemoteDashboardModel: ObservableObject {
         macros = SavedMacro.normalizingNames(in: SettingsStorage.load([SavedMacro].self, SettingsKeys.Stored.macros, defaults: defaults) ?? [])
         phrases = SettingsStorage.load([SavedPhrase].self, SettingsKeys.Stored.phrases, defaults: defaults) ?? []
         phraseAssignments = SettingsStorage.load(PhraseAssignments.self, SettingsKeys.Stored.phraseAssignments, defaults: defaults) ?? PhraseAssignments()
+        var loadedVirtualKeySchemes = SettingsStorage.load([VirtualKeyScheme].self, SettingsKeys.Stored.virtualKeySchemes, defaults: defaults) ?? []
+        if !defaults.bool(forKey: SettingsKeys.virtualKeySchemesInitialized) {
+            loadedVirtualKeySchemes = VirtualKeyScheme.defaults
+            defaults.set(true, forKey: SettingsKeys.virtualKeySchemesInitialized)
+            defaults.set(2, forKey: SettingsKeys.virtualKeySchemesVersion)
+        } else if defaults.integer(forKey: SettingsKeys.virtualKeySchemesVersion) < 2 {
+            // Upgrade the built-in pad to the media bindings without touching custom schemes.
+            if let preset = VirtualKeyScheme.defaults.first,
+               let index = loadedVirtualKeySchemes.firstIndex(where: { $0.id == preset.id }) {
+                loadedVirtualKeySchemes[index][.dpadLeft, .single] = preset[.dpadLeft, .single]
+                loadedVirtualKeySchemes[index][.dpadRight, .single] = preset[.dpadRight, .single]
+                loadedVirtualKeySchemes[index][.buttonA, .single] = preset[.buttonA, .single]
+            }
+            defaults.set(2, forKey: SettingsKeys.virtualKeySchemesVersion)
+        }
+        virtualKeySchemes = loadedVirtualKeySchemes
         usageStore = UsageStore(defaults: defaults)
         harnesses = SettingsStorage.load([HarnessConfiguration].self, SettingsKeys.Stored.harnesses, defaults: defaults) ?? HarnessConfiguration.defaults
         selectedHarnessID = defaults.string(forKey: SettingsKeys.selectedHarnessID)
@@ -841,6 +863,7 @@ final class RemoteDashboardModel: ObservableObject {
         macros = backup.macros
         phrases = backup.phrases
         phraseAssignments = backup.phraseAssignments ?? PhraseAssignments()
+        virtualKeySchemes = backup.virtualKeySchemes ?? []
         harnesses = backup.harnesses ?? HarnessConfiguration.defaults
         globalButtons = backup.globalButtons ?? .defaults(for: remoteProfile)
         let current = remoteKeyConfigurations[remoteProfile.id]
@@ -974,6 +997,7 @@ final class RemoteDashboardModel: ObservableObject {
         if value.action == .openApplication || value.action == .focusApplication { return value.applicationPath.map { URL(fileURLWithPath: $0).deletingPathExtension().lastPathComponent } ?? "选择应用" }
         if value.action == .phrase { return phrases.first(where: { $0.id.uuidString == value.referenceID })?.title ?? "选择常用语" }
         if value.action == .macro { return macros.first(where: { $0.id.uuidString == value.referenceID })?.name ?? "选择组合动作" }
+        if value.action == .openVirtualPad { return virtualKeySchemes.first(where: { $0.id.uuidString == value.referenceID })?.displayName ?? "选择虚拟方案" }
         return value.action == .disabled ? "未设置" : value.action.label
     }
 

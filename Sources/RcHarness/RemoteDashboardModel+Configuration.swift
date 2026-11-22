@@ -24,6 +24,7 @@ extension RemoteDashboardModel {
                                     globalButtons: globalButtons, macroPresetsVersion: configurationMacroPresetsVersion,
                                     remoteKeyConfigurations: keyConfigurationsForBackup())
         backup.phraseAssignments = phraseAssignments
+        backup.virtualKeySchemes = virtualKeySchemes
         backup.customMacroTags = customMacroTags
         backup.version = 4
         return backup

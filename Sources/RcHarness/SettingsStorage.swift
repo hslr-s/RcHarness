@@ -10,6 +10,7 @@ enum SettingsStorage {
         SettingsKeys.Stored.profiles, SettingsKeys.Stored.harnesses, SettingsKeys.Stored.macros,
         SettingsKeys.Stored.customMacroTags,
         SettingsKeys.Stored.phrases, SettingsKeys.Stored.phraseAssignments,
+        SettingsKeys.Stored.virtualKeySchemes,
         SettingsKeys.Stored.globalButtons, SettingsKeys.Stored.remoteKeyConfigurations,
         SettingsKeys.Stored.macroPresetsVersion,
     ]

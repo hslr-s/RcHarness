@@ -666,11 +666,12 @@ struct ActionMappingEditor: View {
     @State private var selectedMacroTagIDs: Set<String> = []
     private var actions: [RemoteAction] {
         let basic: [RemoteAction] = [.enter, .backspace, .rapidDelete, .escape, .arrowUp, .arrowDown, .arrowLeft, .arrowRight, .copy, .paste, .browserBack, .browserForward]
-        let system: [RemoteAction] = [.volumeUp, .volumeDown, .mute, .playPause, .showAllWindows] + RemoteAction.harnessFocusActions
+        let system: [RemoteAction] = [.volumeUp, .volumeDown, .mute, .playPause, .previousTrack, .nextTrack, .showAllWindows] + RemoteAction.harnessFocusActions
             + (SystemDesktopController.shared.isSupported ? [.showDesktop] : [])
             + [.mouseLeft, .mouseRight, .pointerUp, .pointerDown, .pointerLeft, .pointerRight, .scrollUp, .scrollDown]
             + (parentMacroID == nil ? [.switchToNativeMode, .switchToMouseMode, .switchApplications, .openHarnessSwitcher, .openPhrases, .showShortcutHelp] : [])
         let custom: [RemoteAction] = [.recordedShortcut, .openApplication, .focusApplication, .phrase, .macro]
+            + (parentMacroID == nil ? [.openVirtualPad] : [])
         let filtered: [RemoteAction]
         switch filter {
         case .basic: filtered = basic
@@ -728,6 +729,10 @@ struct ActionMappingEditor: View {
                 Text("唤出独立常用语浮层。上下左右和确认键各对应一条常用语，单击输入内容1，双击输入内容2；返回或主页关闭。")
                     .font(.caption).foregroundStyle(.secondary)
             }
+            if value.action == .openVirtualPad {
+                Text("唤出所选虚拟按键方案。五个虚拟键各支持单击、双击和长按三种动作；按其他任意按键或 Esc 退出。")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             if value.action == .showShortcutHelp {
                 Text("显示当前模式的按键速查界面，按任意遥控器按键或键盘按键关闭。原生模式下不执行映射动作。")
                     .font(.caption).foregroundStyle(.secondary)
@@ -761,6 +766,21 @@ struct ActionMappingEditor: View {
                         .font(.caption).foregroundStyle(.red)
                 }
                 Button("管理常用语") { model.page = .phrases }.buttonStyle(.link).font(.caption)
+            }
+            if value.action == .openVirtualPad {
+                MappingEditorField("虚拟方案") {
+                    SettingsSingleSelectionPicker(selection: Binding(get: { value.referenceID ?? "" }, set: { value.referenceID = $0 }),
+                        options: [SettingsSelectionOption(value: "", title: "选择虚拟方案")] + model.virtualKeySchemes.map {
+                            SettingsSelectionOption(value: $0.id.uuidString, title: $0.displayName)
+                        }, accessibilityLabel: "虚拟方案", identifier: "mapping-virtual-pad-picker",
+                        missingSelectionTitle: "已删除的虚拟方案")
+                }
+                if let referenceID = value.referenceID, !referenceID.isEmpty,
+                   !model.virtualKeySchemes.contains(where: { $0.id.uuidString == referenceID }) {
+                    Text("引用的虚拟方案已删除，请重新选择。")
+                        .font(.caption).foregroundStyle(.red)
+                }
+                Button("管理虚拟按键") { model.page = .virtualKeys }.buttonStyle(.link).font(.caption)
             }
             if value.action == .macro {
                 MacroReferencePicker(referenceID: $value.referenceID, tagIDs: $selectedMacroTagIDs,

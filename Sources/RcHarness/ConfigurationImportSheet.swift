@@ -31,6 +31,7 @@ struct ConfigurationImportSheet: View {
                 countRow("组合动作", preview.current.macros, preview.prepared.counts.macros)
                 countRow("常用语", preview.current.phrases, preview.prepared.counts.phrases)
                 countRow("五向分配", preview.current.assignments, preview.prepared.counts.assignments)
+                countRow("虚拟方案", preview.current.virtualSchemes, preview.prepared.counts.virtualSchemes)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(SettingsStyle.panelPadding)

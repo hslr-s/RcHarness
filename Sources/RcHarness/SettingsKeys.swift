@@ -19,6 +19,8 @@ enum SettingsKeys {
     static let macroPresetsVersion = "RcHarness.macroPresetsVersion"
     static let aiPhrasePresetsInitialized = "RcHarness.aiPhrasePresetsInitialized"
     static let aiPhraseAssignmentsInitialized = "RcHarness.aiPhraseAssignmentsInitialized"
+    static let virtualKeySchemesInitialized = "RcHarness.virtualKeySchemesInitialized"
+    static let virtualKeySchemesVersion = "RcHarness.virtualKeySchemesVersion"
     static let voicePeripheralUUID = "RcHarness.voicePeripheralUUID"
     static func voicePeripheralUUID(profileID: String) -> String {
         "RcHarness.voicePeripheralUUID." + profileID
@@ -36,6 +38,7 @@ enum SettingsKeys {
         static let customMacroTags = "customMacroTags"
         static let phrases = "phrases"
         static let phraseAssignments = "phraseAssignments"
+        static let virtualKeySchemes = "virtualKeySchemes"
         static let harnesses = "harnesses"
         static let usage = "usage"
         /// Read only to migrate configurations from before profiles owned the default mapping.

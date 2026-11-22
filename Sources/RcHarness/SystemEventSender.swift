@@ -29,6 +29,8 @@ private enum MediaKey {
     static let soundDown = 1
     static let mute = 7
     static let play = 16
+    static let next = 17
+    static let previous = 18
 }
 
 /// Device-dependent flags from IOLLEvent.h. Shortcut listeners may use these
@@ -162,7 +164,9 @@ final class SystemEventSender {
         case .volumeDown: mediaKey(MediaKey.soundDown, pressed: pressed)
         case .mute: mediaKey(MediaKey.mute, pressed: pressed)
         case .playPause: mediaKey(MediaKey.play, pressed: pressed)
-        case .phrase, .macro, .switchToNativeMode, .switchToMouseMode, .openHarnessSwitcher, .openPhrases, .switchApplications,
+        case .previousTrack: mediaKey(MediaKey.previous, pressed: pressed)
+        case .nextTrack: mediaKey(MediaKey.next, pressed: pressed)
+        case .phrase, .macro, .switchToNativeMode, .switchToMouseMode, .openHarnessSwitcher, .openPhrases, .openVirtualPad, .switchApplications,
              .focusApplication, .focusChatGPT, .focusClaude, .focusCursor, .focusDeepSeek, .focusWorkBuddy, .focusOpenCode, .showShortcutHelp, .disabled: break
         }
     }

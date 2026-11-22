@@ -303,6 +303,7 @@ struct RemoteDashboardView: View {
                 DispatchQueue.main.async { openRenameSheet() }
             }
         case .phrases: PhrasesPage(model: model)
+        case .virtualKeys: VirtualKeysPage(model: model)
         case .about: AboutPage(model: model)
         case .statistics: StatisticsPage(store: model.usageStore, range: statisticsRange)
         }

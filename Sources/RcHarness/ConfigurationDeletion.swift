@@ -4,10 +4,11 @@ enum DeletionTarget: Equatable {
     case phrase(UUID)
     case macro(UUID)
     case profile(UUID, remoteID: String)
+    case virtualKeyScheme(UUID)
 
     var objectID: UUID {
         switch self {
-        case .phrase(let id), .macro(let id), .profile(let id, _): id
+        case .phrase(let id), .macro(let id), .profile(let id, _), .virtualKeyScheme(let id): id
         }
     }
 
@@ -15,6 +16,7 @@ enum DeletionTarget: Equatable {
         switch self {
         case .phrase: .phrase
         case .macro: .macro
+        case .virtualKeyScheme: .openVirtualPad
         case .profile: nil
         }
     }
@@ -28,7 +30,8 @@ struct DeletionImpact: Equatable {
         let name: String
         let direct: Int
         let indirect: Int
-        var id: String { remoteID + ":" + (profileID?.uuidString ?? "global") }
+        var isVirtualScheme = false
+        var id: String { (isVirtualScheme ? "scheme" : remoteID) + ":" + (profileID?.uuidString ?? "global") }
         var count: Int { direct + indirect }
     }
     struct MacroUse: Equatable, Identifiable {
@@ -42,7 +45,8 @@ struct DeletionImpact: Equatable {
     var hasReferences: Bool { !mappings.isEmpty || !macros.isEmpty || !assignments.isEmpty }
     var directMappings: Int { mappings.reduce(0) { $0 + $1.direct } }
     var indirectMappings: Int { mappings.reduce(0) { $0 + $1.indirect } }
-    var remoteCount: Int { Set(mappings.map(\.remoteID)).count }
+    var remoteCount: Int { Set(mappings.filter { !$0.isVirtualScheme }.map(\.remoteID)).count }
+    var virtualSchemeCount: Int { mappings.filter(\.isVirtualScheme).count }
 
     init(target: DeletionTarget, backup: SettingsBackup) {
         func directlyReferences(_ mapping: ButtonMapping) -> Bool {
@@ -98,6 +102,17 @@ struct DeletionImpact: Equatable {
                                        direct: direct, indirect: indirect))
             }
         }
+        if case .virtualKeyScheme = target {
+            for scheme in backup.virtualKeySchemes ?? [] {
+                let (direct, indirect) = counts(Array(scheme.mapping.buttons.values))
+                if direct + indirect > 0 {
+                    var use = MappingUse(remoteID: "virtual", profileID: scheme.id,
+                                         name: "虚拟方案「\(scheme.displayName)」", direct: direct, indirect: indirect)
+                    use.isVirtualScheme = true
+                    uses.append(use)
+                }
+            }
+        }
         mappings = uses
         if case .phrase(let id) = target {
             assignments = PhraseAssignments.inputs.filter { backup.phraseAssignments?[$0] == id }
@@ -138,6 +153,7 @@ struct DeletedConfigurationObject: Identifiable {
         case phrase(SavedPhrase, assignments: [ControllerInput])
         case macro(SavedMacro)
         case profile(SavedKeyProfile, remoteID: String, wasSelected: Bool)
+        case virtualKeyScheme(VirtualKeyScheme)
     }
     let id = UUID()
     let value: Value
@@ -147,6 +163,7 @@ struct DeletedConfigurationObject: Identifiable {
         case .phrase(let phrase, _): phrase.displayTitle
         case .macro(let macro): macro.name
         case .profile(let profile, _, _): profile.name
+        case .virtualKeyScheme(let scheme): scheme.displayName
         }
     }
 }
@@ -163,6 +180,7 @@ extension RemoteDashboardModel {
         case .profile(let id, let remoteID):
             guard remoteID == remoteProfile.id, canDeleteProfile(id) else { return nil }
             return profiles.first { $0.id == id }?.name
+        case .virtualKeyScheme(let id): return virtualKeySchemes.first { $0.id == id }?.displayName
         }
     }
 
@@ -229,6 +247,16 @@ extension RemoteDashboardModel {
             }
             backup.remoteKeyConfigurations?[remoteID] = configuration
             backup.profiles = configuration.profiles
+        case .virtualKeyScheme(let id):
+            guard let schemes = backup.virtualKeySchemes,
+                  let index = schemes.firstIndex(where: { $0.id == id }) else { return false }
+            deleted = DeletedConfigurationObject(value: .virtualKeyScheme(schemes[index]),
+                position: DeletedPosition(index: index, ids: schemes.map(\.id)))
+            // Keep dangling reference IDs like phrases and macros do: the
+            // editor flags them and undo restores every binding intact.
+            var remaining = schemes
+            remaining.remove(at: index)
+            backup.virtualKeySchemes = remaining
         }
         do {
             try commitDeletionChange(backup)
@@ -279,6 +307,14 @@ extension RemoteDashboardModel {
             }
             backup.remoteKeyConfigurations?[remoteID] = configuration
             if remoteID == remoteProfile.id { backup.profiles = configuration.profiles }
+        case .virtualKeyScheme(let scheme):
+            var schemes = backup.virtualKeySchemes ?? []
+            guard !schemes.contains(where: { $0.id == scheme.id || $0.name.caseInsensitiveCompare(scheme.name) == .orderedSame }) else {
+                postNotice("无法撤销：已有相同 ID 或名称的虚拟方案，请先处理冲突。", level: .error, source: .configurationDeletion)
+                return
+            }
+            schemes.insert(scheme, at: deleted.position.insertionIndex(in: schemes.map(\.id)))
+            backup.virtualKeySchemes = schemes
         }
         do {
             try commitDeletionChange(backup)

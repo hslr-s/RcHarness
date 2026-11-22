@@ -19,12 +19,14 @@ struct DeletionConfirmationSheet: View {
                 VStack(alignment: .leading, spacing: SettingsStyle.Spacing.groups) {
                     if !impact.mappings.isEmpty {
                         VStack(alignment: .leading, spacing: SettingsStyle.Spacing.inline) {
-                            Text("\(impact.remoteCount) 个型号 · \(impact.directMappings + impact.indirectMappings) 处按键映射")
+                            Text("\(impact.remoteCount) 个型号"
+                                 + (impact.virtualSchemeCount > 0 ? " · \(impact.virtualSchemeCount) 套虚拟方案" : "")
+                                 + " · \(impact.directMappings + impact.indirectMappings) 处按键映射")
                                 .font(.system(size: 13, weight: .semibold))
                             ForEach(impact.mappings) { usage in
                                 HStack(alignment: .top, spacing: SettingsStyle.Spacing.controls) {
                                     VStack(alignment: .leading, spacing: 3) {
-                                        Text(remoteName(usage.remoteID)).foregroundStyle(.secondary)
+                                        Text(usage.isVirtualScheme ? "虚拟方案" : remoteName(usage.remoteID)).foregroundStyle(.secondary)
                                         Text(usage.name)
                                     }
                                     Spacer(minLength: 8)

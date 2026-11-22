@@ -37,6 +37,9 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
     private lazy var phrasePicker = PhrasePickerController { [weak self] text in
         self?.sender.typeText(text)
     }
+    private lazy var virtualPadPicker = VirtualPadPickerController { [weak self] mapping, pressed, input in
+        self?.sendAction(mapping, pressed: pressed, input: input)
+    }
     private var macroWork: [DispatchWorkItem] = []
     private lazy var voiceSession = RemoteVoiceSessionController(output: microphone) { [weak self] mapping, pressed in
         if let shortcut = mapping.shortcutForVoice {
@@ -111,6 +114,7 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
             self?.applicationSwitcher.reset()
             self?.harnessSwitcher.model.reset(reason: "rescan")
             self?.phrasePicker.model.reset()
+            self?.virtualPadPicker.model.reset()
             self?.hid.rescan()
             self?.voice.stop()
             self?.voice.start()
@@ -154,6 +158,7 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
             self.applicationSwitcher.reset()
             self.harnessSwitcher.model.reset(reason: "setup-navigation")
             self.phrasePicker.model.reset()
+            self.virtualPadPicker.model.reset()
             self.shortcutHelp.dismiss()
             self.gestures.cancel()
             self.cancelMacros()
@@ -232,6 +237,7 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
         voice.canStartCapture = nil
         harnessSwitcher.model.reset(reason: "remote-changed")
         phrasePicker.model.reset()
+        virtualPadPicker.model.reset()
         gestures.cancel()
         cancelMacros()
         heldVoiceInput = nil
@@ -288,6 +294,7 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
         applicationSwitcher.reset()
         harnessSwitcher.model.reset(reason: "termination")
         phrasePicker.model.reset()
+        virtualPadPicker.model.reset()
         dashboardModel?.flushPendingWrites()
         DistributedNotificationCenter.default().removeObserver(self)
         NSWorkspace.shared.notificationCenter.removeObserver(self)
@@ -309,6 +316,7 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
         applicationSwitcher.confirm()
         harnessSwitcher.model.dismiss(reason: "foreground-application-changed")
         phrasePicker.model.dismiss()
+        virtualPadPicker.model.dismiss()
         guard app?.bundleIdentifier != Bundle.main.bundleIdentifier else { return }
         guard mode != .mouse else { return }
         dashboardModel?.matchApplication(app?.bundleURL?.path, bundleIdentifier: app?.bundleIdentifier)
@@ -318,6 +326,7 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
         applicationSwitcher.reset()
         harnessSwitcher.model.reset(reason: "sleep")
         phrasePicker.model.reset()
+        virtualPadPicker.model.reset()
         dashboardModel?.flushPendingWrites()
         gestures.cancel()
         cancelMacros()
@@ -402,6 +411,7 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
                 self.applicationSwitcher.reset()
                 self.harnessSwitcher.model.reset(reason: "remote-disconnected")
                 self.phrasePicker.model.reset()
+                self.virtualPadPicker.model.reset()
                 self.gestures.cancel()
                 self.cancelMacros()
                 self.heldVoiceInput = nil
@@ -426,6 +436,7 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
             self.applicationSwitcher.cancel(input)
             self.gestures.cancel(input)
             self.phrasePicker.model.cancel(input)
+            self.virtualPadPicker.model.cancel(input)
             if self.heldVoiceInput == input {
                 self.heldVoiceInput = nil
                 self.voiceSession.cancel()
@@ -455,12 +466,14 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
                 && (!self.dashboardModel.setup.isPresented || self.dashboardModel.setupReadiness.ready)
                 && self.dashboardModel?.microphoneOperationInProgress != true
                 && !self.harnessSwitcher.model.isPresented && !self.phrasePicker.model.isPresented
+                && !self.virtualPadPicker.model.isPresented
                 && !self.applicationSwitcher.isPresented
         }
         voice.onStreamEvent = { [weak self] event in
             guard self?.harnessSwitcher.model.isPresented != true,
                   self?.applicationSwitcher.isPresented != true,
-                  self?.phrasePicker.model.isPresented != true else { return }
+                  self?.phrasePicker.model.isPresented != true,
+                  self?.virtualPadPicker.model.isPresented != true else { return }
             self?.dashboardModel?.setup.observeVoice(event)
             if case .started = event {
                 self?.dashboardModel?.stopTestTone()
@@ -472,7 +485,8 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
         voice.onSamples = { [weak self] samples in
             guard self?.harnessSwitcher.model.isPresented != true,
                   self?.applicationSwitcher.isPresented != true,
-                  self?.phrasePicker.model.isPresented != true else { return }
+                  self?.phrasePicker.model.isPresented != true,
+                  self?.virtualPadPicker.model.isPresented != true else { return }
             self?.dashboardModel?.setup.observeSamples(samples.count)
             self?.voiceSession.append(samples)
         }
@@ -490,6 +504,7 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
             // Keep the other modal routers' physical key tracking up to date.
             _ = phrasePicker.model.handle(input, pressed: pressed)
             _ = harnessSwitcher.model.handle(input, pressed: pressed)
+            _ = virtualPadPicker.model.handle(input, pressed: pressed)
             return
         }
         if voiceStopInputs.contains(input) {
@@ -505,7 +520,8 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
         }
         let phraseConsumed = phrasePicker.model.handle(input, pressed: pressed)
         let switcherConsumed = harnessSwitcher.model.handle(input, pressed: pressed)
-        let consumed = phraseConsumed || switcherConsumed
+        let virtualPadConsumed = virtualPadPicker.model.handle(input, pressed: pressed)
+        let consumed = phraseConsumed || switcherConsumed || virtualPadConsumed
         if dashboardModel?.isGlobalInput(input) == true {
             Log.switcher.notice("Global input=\(input.rawValue, privacy: .public) down=\(pressed) consumed=\(consumed) mapping_mode=\(self.mode != .native) single=\(self.activeMapping[input, .single].action.rawValue, privacy: .public) double=\(self.activeMapping[input, .double].action.rawValue, privacy: .public) long=\(self.activeMapping[input, .long].action.rawValue, privacy: .public)")
         }
@@ -556,6 +572,7 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
             guard pressed, mode != .native, let input else { return }
             harnessSwitcher.model.dismiss(reason: "application-switcher-opened")
             phrasePicker.model.dismiss()
+            virtualPadPicker.model.dismiss()
             gestures.cancel()
             cancelMacros()
             heldVoiceInput = nil
@@ -565,6 +582,7 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
         } else if button.action == .openPhrases {
             guard pressed, mode != .native else { return }
             applicationSwitcher.cancel()
+            virtualPadPicker.model.dismiss()
             if phrasePicker.model.isPresented {
                 phrasePicker.model.dismiss()
             } else {
@@ -576,9 +594,29 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
                 voice.cancelActiveStream()
                 phrasePicker.show(phrases: dashboardModel.phrases, assignments: dashboardModel.phraseAssignments)
             }
+        } else if button.action == .openVirtualPad {
+            guard pressed, mode != .native else { return }
+            guard let scheme = dashboardModel?.virtualKeySchemes.first(where: { $0.id.uuidString == button.referenceID }) else {
+                dashboardModel?.postNotice("虚拟按键方案已删除，请重新在按键映射中选择。", level: .error,
+                                           source: .configurationDeletion)
+                return
+            }
+            applicationSwitcher.cancel()
+            harnessSwitcher.model.dismiss(reason: "virtual-pad-opened")
+            phrasePicker.model.dismiss()
+            shortcutHelp.dismiss()
+            gestures.cancel()
+            cancelMacros()
+            heldVoiceInput = nil
+            voiceSession.cancel()
+            voice.cancelActiveStream()
+            virtualPadPicker.show(scheme: scheme) { [weak self] mapping in
+                self?.dashboardModel?.mappingTitle(mapping) ?? mapping.action.label
+            }
         } else if button.action == .openHarnessSwitcher {
             guard pressed, mode != .native else { return }
             applicationSwitcher.cancel()
+            virtualPadPicker.model.dismiss()
             if harnessSwitcher.model.isPresented {
                 harnessSwitcher.model.dismiss(reason: "open-action-toggle")
             } else {
@@ -622,6 +660,7 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
             } else {
                 harnessSwitcher.model.dismiss(reason: "shortcut-help-opened")
                 phrasePicker.model.dismiss()
+                virtualPadPicker.model.dismiss()
                 gestures.cancel()
                 cancelMacros()
                 heldVoiceInput = nil
@@ -793,6 +832,8 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
         gestures.setTiming(doubleTapWindow: dashboardModel.doubleTapWindow,
                            longPressDelay: dashboardModel.longPressDelay)
         phrasePicker.setDoubleTapWindow(dashboardModel.doubleTapWindow)
+        virtualPadPicker.setTiming(doubleTapWindow: dashboardModel.doubleTapWindow,
+                                   longPressDelay: dashboardModel.longPressDelay)
     }
 
     private func setOperationMode(_ newMode: ControllerOperationMode) {
@@ -803,6 +844,7 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
         focusRequestGate.begin()
         harnessSwitcher.model.reset(reason: "mode-changed")
         phrasePicker.model.reset()
+        virtualPadPicker.model.reset()
         gestures.cancel()
         cancelMacros()
         heldVoiceInput = nil
@@ -924,6 +966,7 @@ final class RcHarnessApp: NSObject, NSApplicationDelegate {
         applicationSwitcher.cancel()
         harnessSwitcher.model.dismiss(reason: "dashboard-opened")
         phrasePicker.model.dismiss()
+        virtualPadPicker.model.dismiss()
         if NSApp.currentEvent?.type == .rightMouseUp {
             statusItem.menu = statusMenu
             statusItem.button?.performClick(nil)

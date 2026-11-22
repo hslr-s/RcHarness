@@ -2,9 +2,9 @@ import Foundation
 
 // Local settings are independent of the device adapters and never contain speech.
 enum SettingsPage: String, CaseIterable, Identifiable {
-    case mapping, harness, macros, profiles, connection, about, statistics, phrases
+    case mapping, harness, macros, profiles, connection, about, statistics, phrases, virtualKeys
     var id: String { rawValue }
-    static let navigation: [Self] = [.mapping, .harness, .profiles, .macros, .phrases, .connection, .about]
+    static let navigation: [Self] = [.mapping, .harness, .profiles, .macros, .phrases, .virtualKeys, .connection, .about]
     var title: String {
         switch self {
         case .mapping: "按键映射"
@@ -15,6 +15,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .about: "设置"
         case .statistics: "使用统计"
         case .phrases: "常用语"
+        case .virtualKeys: "虚拟按键"
         }
     }
     var shortTitle: String {
@@ -36,6 +37,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .about: "gearshape"
         case .statistics: "chart.bar.fill"
         case .phrases: "text.bubble"
+        case .virtualKeys: "rectangle.grid.2x2"
         }
     }
 }
@@ -549,6 +551,7 @@ struct SettingsBackup: Codable, Equatable {
     var macros: [SavedMacro]
     var phrases: [SavedPhrase]
     var phraseAssignments: PhraseAssignments? = nil
+    var virtualKeySchemes: [VirtualKeyScheme]? = nil
     var harnesses: [HarnessConfiguration]? = nil
     var globalButtons: GlobalButtonSettings? = nil
     var macroPresetsVersion: Int? = nil

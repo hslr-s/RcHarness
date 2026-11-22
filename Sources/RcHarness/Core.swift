@@ -245,8 +245,8 @@ enum RemoteAction: String, CaseIterable, Codable, Identifiable, Hashable {
     case rightCommand, copy, paste, browserBack, browserForward
     case mouseLeft, mouseRight, pointerUp, pointerDown, pointerLeft, pointerRight
     case scrollUp, scrollDown, volumeUp, volumeDown, recordedShortcut, openApplication, focusApplication, disabled
-    case leftCommand, fn, leftOption, rightOption, playPause, mute, phrase, macro
-    case openHarnessSwitcher, openPhrases, showAllWindows, switchApplications, showDesktop, focusChatGPT
+    case leftCommand, fn, leftOption, rightOption, playPause, previousTrack, nextTrack, mute, phrase, macro
+    case openHarnessSwitcher, openPhrases, openVirtualPad, showAllWindows, switchApplications, showDesktop, focusChatGPT
     case focusClaude, focusCursor, focusDeepSeek, focusWorkBuddy, focusOpenCode
     case showShortcutHelp
 
@@ -319,11 +319,14 @@ enum RemoteAction: String, CaseIterable, Codable, Identifiable, Hashable {
         case .leftOption: "按住左侧 Option"
         case .rightOption: "按住右侧 Option"
         case .playPause: "播放 / 暂停"
+        case .previousTrack: "上一曲"
+        case .nextTrack: "下一曲"
         case .mute: "系统静音"
         case .phrase: "输入常用语"
         case .macro: "执行组合动作"
         case .openHarnessSwitcher: "打开运行 Harness 列表"
         case .openPhrases: "唤出常用语"
+        case .openVirtualPad: "唤出虚拟按键"
         case .focusChatGPT: "打开聚焦ChatGPT"
         case .focusClaude: "打开聚焦Claude"
         case .focusCursor: "打开聚焦Cursor"

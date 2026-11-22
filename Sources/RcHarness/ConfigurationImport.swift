@@ -13,6 +13,7 @@ struct ConfigurationCounts {
     let macros: Int
     let phrases: Int
     let assignments: Int
+    let virtualSchemes: Int
 
     init(_ backup: SettingsBackup) {
         let configurations = backup.remoteKeyConfigurations ?? [:]
@@ -23,6 +24,7 @@ struct ConfigurationCounts {
         macros = backup.macros.count
         phrases = backup.phrases.count
         assignments = backup.phraseAssignments?.slots.count ?? 0
+        virtualSchemes = backup.virtualKeySchemes?.count ?? 0
     }
 }
 
@@ -54,6 +56,8 @@ struct PreparedConfiguration {
         guard original.phraseAssignments?.slots.keys.allSatisfy({ key in
             PhraseAssignments.inputs.contains { $0.rawValue == key }
         }) ?? true else { throw SettingsBackupError.invalidFormat }
+        let virtualSchemes = original.virtualKeySchemes ?? []
+        guard Set(virtualSchemes.map(\.id)).count == virtualSchemes.count else { throw SettingsBackupError.invalidFormat }
 
         let version = original.macroPresetsVersion ?? 0
         let customTags: [MacroTag]
@@ -108,6 +112,7 @@ struct PreparedConfiguration {
             macros: macros, phrases: original.phrases, harnesses: normalized.harnesses, globalButtons: globals,
             macroPresetsVersion: max(version, DefaultMacros.version), remoteKeyConfigurations: configurations)
         result.phraseAssignments = original.phraseAssignments ?? PhraseAssignments()
+        result.virtualKeySchemes = virtualSchemes
         result.customMacroTags = customTags
         // This also rejects values that cannot be represented in the persisted snapshot.
         _ = try JSONEncoder().encode(result)
@@ -130,10 +135,12 @@ struct PreparedConfiguration {
     static func danglingReferenceCount(in backup: SettingsBackup) -> Int {
         let phraseIDs = Set(backup.phrases.map(\.id.uuidString))
         let macroIDs = Set(backup.macros.map(\.id.uuidString))
+        let schemeIDs = Set((backup.virtualKeySchemes ?? []).map(\.id.uuidString))
         func isDangling(_ mapping: ButtonMapping) -> Bool {
             switch mapping.action {
             case .phrase: return mapping.referenceID.map(phraseIDs.contains) != true
             case .macro: return mapping.referenceID.map(macroIDs.contains) != true
+            case .openVirtualPad: return mapping.referenceID.map(schemeIDs.contains) != true
             default: return false
             }
         }
@@ -143,8 +150,9 @@ struct PreparedConfiguration {
             $0.globalButtons.buttons.flatMap { [$0.single, $0.double, $0.long] } + [$0.globalButtons.voice]
         }.filter(isDangling).count
         let steps = backup.macros.flatMap(\.steps).map(\.mapping).filter(isDangling).count
+        let virtualButtons = (backup.virtualKeySchemes ?? []).flatMap(\.mapping.buttons.values).filter(isDangling).count
         let slots = (backup.phraseAssignments ?? PhraseAssignments()).slots.values.filter { !phraseIDs.contains($0.uuidString) }.count
-        return buttons + globals + steps + slots
+        return buttons + globals + steps + virtualButtons + slots
     }
 
     var notices: [String] {
@@ -174,6 +182,7 @@ extension SettingsStorage {
             SettingsKeys.Stored.customMacroTags: try encoder.encode(backup.customMacroTags ?? []),
             SettingsKeys.Stored.phrases: try encoder.encode(backup.phrases),
             SettingsKeys.Stored.phraseAssignments: try encoder.encode(backup.phraseAssignments ?? PhraseAssignments()),
+            SettingsKeys.Stored.virtualKeySchemes: try encoder.encode(backup.virtualKeySchemes ?? []),
             SettingsKeys.Stored.globalButtons: try encoder.encode(backup.globalButtons ?? GlobalButtonSettings()),
             SettingsKeys.Stored.remoteKeyConfigurations: try encoder.encode(backup.remoteKeyConfigurations ?? [:]),
             SettingsKeys.Stored.macroPresetsVersion: try encoder.encode(backup.macroPresetsVersion ?? DefaultMacros.version),
